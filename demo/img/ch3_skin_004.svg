@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Niacinamide Day Cream">
+  <defs><linearGradient id="g3" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#efe6dc"/><stop offset="1" stop-color="#efe6dc" stop-opacity=".5"/>
+  </linearGradient></defs>
+  <rect width="160" height="160" rx="14" fill="url(#g3)"/>
+  <path d="M66 46 h28 v10 l6 62 a8 8 0 0 1 -8 8 h-24 a8 8 0 0 1 -8 -8 z" fill="#d0b8a3" opacity=".92"/><rect x="72" y="38" width="16" height="10" rx="3" fill="#d0b8a3"/><rect x="68" y="86" width="24" height="22" rx="3" fill="#ffffff" opacity=".45"/>
+  <text x="80" y="147" text-anchor="middle" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif"
+        font-size="9.5" font-weight="700" fill="#2b2620" opacity=".85">LUMEN SKIN</text>
+</svg>

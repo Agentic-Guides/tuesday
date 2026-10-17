@@ -1,0 +1,226 @@
+{
+ "skincare": [
+  [
+   "ch3_skin_001",
+   "Hyaluronic Acid Serum",
+   "30ml",
+   "Lumen Skin",
+   42.0,
+   "#e8d4c8",
+   "#c9a68f"
+  ],
+  [
+   "ch3_skin_002",
+   "Hyaluronic Acid Serum",
+   "15ml refill",
+   "Lumen Skin",
+   24.0,
+   "#e8d4c8",
+   "#b8937c"
+  ],
+  [
+   "ch3_skin_003",
+   "Retinol Night Serum",
+   "30ml",
+   "Lumen Skin",
+   48.0,
+   "#d8cfc4",
+   "#a8896f"
+  ],
+  [
+   "ch3_skin_004",
+   "Niacinamide Day Cream",
+   "50ml",
+   "Lumen Skin",
+   34.0,
+   "#efe6dc",
+   "#d0b8a3"
+  ],
+  [
+   "ch3_skin_005",
+   "Vitamin C Brightening Serum",
+   "30ml",
+   "Lumen Skin",
+   39.0,
+   "#f2dcc0",
+   "#d9a86a"
+  ],
+  [
+   "ch3_skin_006",
+   "Gentle Foaming Cleanser",
+   "150ml refill",
+   "Lumen Skin",
+   19.0,
+   "#e6eae5",
+   "#aebdb2"
+  ]
+ ],
+ "supplements": [
+  [
+   "ch3_supp_001",
+   "Magnesium Glycinate",
+   "120 caps",
+   "Northwell",
+   28.0,
+   "#dfe7f0",
+   "#8fa8c4"
+  ],
+  [
+   "ch3_supp_002",
+   "Omega-3 Fish Oil",
+   "90 softgels",
+   "Northwell",
+   32.0,
+   "#f0e8d8",
+   "#c4a86a"
+  ],
+  [
+   "ch3_supp_003",
+   "Vitamin D3 + K2",
+   "60 caps",
+   "Northwell",
+   22.0,
+   "#fdf3d8",
+   "#e0c060"
+  ],
+  [
+   "ch3_supp_004",
+   "Creatine Monohydrate",
+   "300g",
+   "Northwell",
+   26.0,
+   "#eae4dc",
+   "#b0a090"
+  ],
+  [
+   "ch3_supp_005",
+   "Probiotic 20B CFU",
+   "30 caps",
+   "Northwell",
+   36.0,
+   "#e4f0e8",
+   "#90c0a8"
+  ],
+  [
+   "ch3_supp_006",
+   "Electrolyte Powder",
+   "40 servings",
+   "Northwell",
+   30.0,
+   "#e8f0f8",
+   "#90b8e0"
+  ]
+ ],
+ "electronics": [
+  [
+   "ch3_elec_001",
+   "USB-C 100W Charger",
+   "GaN 3-port",
+   "Voltek",
+   54.0,
+   "#e0e0e4",
+   "#909098"
+  ],
+  [
+   "ch3_elec_002",
+   "Braided USB-C Cable",
+   "2m 240W",
+   "Voltek",
+   18.0,
+   "#e8e0dc",
+   "#a09088"
+  ],
+  [
+   "ch3_elec_003",
+   "Wireless Charging Pad",
+   "15W Qi2",
+   "Voltek",
+   39.0,
+   "#dcdce4",
+   "#8888a0"
+  ],
+  [
+   "ch3_elec_004",
+   "Portable SSD",
+   "1TB USB 3.2",
+   "Voltek",
+   89.0,
+   "#d8d8dc",
+   "#787880"
+  ],
+  [
+   "ch3_elec_005",
+   "HDMI 2.1 Cable",
+   "3m 8K",
+   "Voltek",
+   24.0,
+   "#e4e4e8",
+   "#9898a4"
+  ],
+  [
+   "ch3_elec_006",
+   "Laptop Stand",
+   "aluminium",
+   "Voltek",
+   44.0,
+   "#e8e8ec",
+   "#a8a8b4"
+  ]
+ ],
+ "consumables": [
+  [
+   "ch3_cons_001",
+   "Printer Paper A4",
+   "500 sheets",
+   "OfficeLine",
+   12.0,
+   "#f4f4f0",
+   "#c0c0b8"
+  ],
+  [
+   "ch3_cons_002",
+   "Toner Cartridge",
+   "black",
+   "OfficeLine",
+   68.0,
+   "#dcdcd8",
+   "#808078"
+  ],
+  [
+   "ch3_cons_003",
+   "Sticky Notes",
+   "pack of 12",
+   "OfficeLine",
+   9.0,
+   "#fdf0d0",
+   "#e0c060"
+  ],
+  [
+   "ch3_cons_004",
+   "Ballpoint Pens",
+   "box of 50",
+   "OfficeLine",
+   15.0,
+   "#e0e8f0",
+   "#8090b0"
+  ],
+  [
+   "ch3_cons_005",
+   "Folders A4",
+   "pack of 25",
+   "OfficeLine",
+   14.0,
+   "#e8f0e4",
+   "#90b080"
+  ],
+  [
+   "ch3_cons_006",
+   "Whiteboard Markers",
+   "pack of 8",
+   "OfficeLine",
+   11.0,
+   "#f0e4f0",
+   "#b090b0"
+  ]
+ ]
+}

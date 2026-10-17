@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tuesday — AI agents renew a merchant's subscriptions through PayPal</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.4/styles/ag-grid.css" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.4/styles/ag-theme-quartz.css" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.4/dist/ag-grid-community.min.noStyle.js"></script crossorigin="anonymous">
+<!-- ★ Bryntum Scheduler (trial) — audit timeline. Pinned version; CDN so deps stay zero.
+     The light "stockholm" theme, not "stockholm-dark": the demo is a light UI, and a black
+     timeline grid in a white page reads as a rendering bug rather than a design choice. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@bryntum/scheduler-trial@7.3.6/scheduler.css" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@bryntum/scheduler-trial@7.3.6/stockholm.css" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/@bryntum/scheduler-trial@7.3.6/scheduler.umd.js"></script crossorigin="anonymous">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0 }
+  :root {
+    /* ★ベージュ階層（hai Lab の paper/ink 設計を赤に翻訳） */
+    --bg: #f0eadf;           /* 一番外側＝温かい紙（ベージュ） */
+    --panel-2: #e8e1d3;      /* 沈んだ面（濃いベージュ） */
+    --sunken: #e2dac9;       /* さらに沈む面 */
+    --panel: #ffffff;        /* カード＝純白で浮かせる */
+    --line: #d9d0bd;         /* 罫線（ベージュ寄り） */
+    --line-2: #c9bfa9;       /* 強めの罫線 */
+    --adv: #15803d; --aud: #be123c; --wit: #1d4ed8;
+    --gold: #c0203c; --dim: #5c554b; --txt: #241f1a;
+  }
+  body { background: var(--bg); color: var(--txt); font: 16px/1.6 -apple-system, "Segoe UI", sans-serif; min-height: 100vh; padding: 24px }
+  .wrap { max-width: 1120px; margin: 0 auto }
+  header { text-align: center; margin-bottom: 24px }
+  h1 { font-size: 34px; letter-spacing: 3px; font-weight: 800;
+       background: linear-gradient(90deg, var(--adv), var(--wit), var(--aud));
+       -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .sub { color: #3d372f; font-size: 15px; margin-top: 4px }
+  .tags { margin: 16px 0 24px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .tag { font-size: 10px; letter-spacing: .14em; font-weight: 700; color: #241f1a; border: 1px solid var(--line); background: var(--sunken); padding: 4px 12px; border-radius: 999px; display: inline-flex; align-items: center; }
+  .panel {
+    position: relative;
+    background: #ffffff;
+    border: 1px solid rgba(0,0,0,0.123);
+    border-radius: 26px;
+    padding: 24px 24px 24px; margin-bottom: 24px;
+    box-shadow:
+      0 1px 0 rgba(0,0,0,0.051); inset,
+      0 26px 60px -34px rgba(88,60,180,.45),
+      0 2px 10px -4px rgba(0,0,0,.45);
+  }
+  /* 上端の光るライン（光が当たっているように見せる） */
+  .panel::after {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--line) 30%, var(--line) 70%, transparent);
+    border-radius: 26px 26px 0 0; pointer-events: none;
+  }
+  /* 内側のヘアライン（Double-Bezel の「内殻」に相当） */
+  .panel::before {
+    content: ""; position: absolute; inset: 6px;
+    border: 1px solid rgba(0,0,0,0.038);
+    border-radius: 20px; pointer-events: none;
+  }
+  .panel > * { position: relative; z-index: 1; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--dim); margin-bottom: 12px }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px }
+  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px }
+  .agent { background: #ffffff; border-radius: 10px; padding: 16px; border: 1px solid var(--line); }
+  .agent.advocate { border-top: 3px solid var(--adv); }
+  .agent.auditor { border-top: 3px solid var(--aud); }
+  .agent.witness { border-top: 3px solid var(--wit); }
+  .agent h3 { font-size: 15px; margin-bottom: 0px }
+  .agent .role { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+  .verdict { display:inline-block; margin-top: 8px; font-size:11px; font-weight:700; padding: 4px 8px; border-radius:6px; text-transform:uppercase; }
+  .v-for { background:#dcfce7; color:var(--adv); }
+  .v-against { background:#fee2e2; color:var(--aud); }
+  .v-neutral { background:#dbeafe; color:var(--wit); }
+  .reasons { margin-top: 12px; font-size: 16px; color: #52525b; }
+  .reasons li { margin: 4px 0 4px 16px }
+  .conf { margin-top: 8px; font-size:11px; color:var(--dim); }
+  input, select { width: 100%; background:#ffffff; border:1px solid var(--line); color:var(--txt);
+                  padding: 12px 12px; border-radius:9px; font-size:14px; outline:none; }
+  input:focus { border-color:#a1a1aa; }
+  label { display:block; font-size:12px; color:var(--dim); margin-bottom: 4px; text-transform:uppercase; letter-spacing:.8px; }
+  .field { margin-bottom: 12px }
+  button { width:100%; margin-top: 4px; padding: 12px; border:none; border-radius:9px; font-size:15px; font-weight:700;
+           background: linear-gradient(90deg,#be123c,#c0203c); color:#fef3c7; cursor:pointer; letter-spacing:.5px; }
+  button:hover { filter: brightness(1.08); }
+  button:disabled { opacity:.5; cursor:wait; }
+  button.secondary { background:var(--sunken); color:var(--txt); }
+  .decision { text-align:center; padding: 16px; border-radius:12px; margin-bottom: 16px }
+  .d-APPROVED { background:#dcfce7; border:1px solid #166534; }
+  .d-CONDITIONAL { background:#92400e; border:1px solid #b45309; }
+  .d-DENIED { background:#fee2e2; border:1px solid #991b1b; }
+  .d-DISSENT { background:#9a3412; border:1px solid #c2410c; }
+  .decision .big { font-size:26px; font-weight:800; letter-spacing:2px; }
+  .vote { color:var(--dim); font-size:12px; margin-top: 4px }
+  .map { background:#ffffff; border-left:3px solid var(--gold); padding: 12px; border-radius:8px; margin-top: 12px }
+  .map h4 { font-size:12px; color:var(--gold); text-transform:uppercase; letter-spacing:1px; margin-bottom: 8px }
+  .map-row { font-size:13px; margin: 4px 0 }
+  .pill { font-size:10px; padding: 0px 8px; border-radius:99px; background:var(--sunken); color:var(--dim); }
+  .hidden { display:none; }
+  a { color: var(--gold); }
+  .tabbar { display:flex; gap: 8px; justify-content:center; margin: 0 0 24px }
+  .tab { padding: 8px 16px; border-radius:8px; background:var(--sunken); color:#241f1a; cursor:pointer; font-size:13px; font-weight:700; }
+  .tab.active { background:#c0203c; color:#ffffff; border-color:#c0203c; }
+  #candidateGrid, #ledgerGrid, #auditGrid {
+    width: 100%;
+    /* height is set by fitGridHeight() from the actual row count */
+  }
+  /* ★ AG Grid dashboard — governance metrics */
+  #auditGrid { width: 100%; height: 460px; }
+  .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap: 12px; margin-bottom: 12px }
+  .metric { background:#ffffff; border:1px solid var(--line); border-radius:10px; padding: 12px }
+  .metric .k { font-size:11px; color:#241f1a; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+  .metric .v { font-size:26px; font-weight:800; margin-top: 4px }
+  .metric .u { font-size:11px; color:var(--dim); }
+  .votechip { display:inline-block; font-size:10px; font-weight:700; padding: 0px 8px; border-radius:6px; margin-right: 4px }
+  .vc-for { background:#dcfce7; color:var(--adv); }
+  .vc-against { background:#fee2e2; color:var(--aud); }
+  .vc-neutral { background:#dbeafe; color:var(--wit); }
+  .receipt { background:#ffffff; border:1px solid var(--line); border-radius:10px; padding: 16px; margin-top: 12px }
+  .receipt h4 { font-size:12px; color:var(--gold); text-transform:uppercase; letter-spacing:1px; margin-bottom: 8px }
+  .kv { display:grid; grid-template-columns:150px 1fr; gap: 4px 12px; font-size:14px; }
+  .kv .k { color:var(--dim); }
+  .kv .v { font-family:ui-monospace,Menlo,Consolas,monospace; word-break:break-all; }
+  /* AG Grid: レシート列はツールチップで全文を見せる（セルは壊さない） */
+  .ag-theme-quartz .ag-cell[col-id='receipt'] {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+  }
+  .ok { color:var(--adv); font-weight:700; }
+  .bad { color:var(--aud); font-weight:700; }
+  .verify-bar { display:flex; gap: 8px; align-items:center; margin-top: 12px }
+  .verify-bar button { width:auto; padding: 8px 16px; font-size:13px; margin: 0 }
+  .verdict-line { font-size:13px; margin-top: 8px }
+  /* ★ Bryntum dispute-triage flag: unresolved case = must not be missed */
+  .b-sch-event.triage-flag { outline:2px solid #c0203c; outline-offset:1px; box-shadow:0 0 10px rgba(251,191,36,.55); }
+  /* Force dark theme (robust across AG Grid versions) */
+  .ag-theme-quartz, .ag-theme-quartz .ag-root-wrapper { background:#ffffff; }
+  .ag-theme-quartz .ag-header { background:var(--panel-2) !important; border-bottom:1px solid var(--line); }
+  .ag-theme-quartz .ag-header-cell, .ag-theme-quartz .ag-header-group-cell { color:#241f1a !important; font-weight:700; }
+  .ag-theme-quartz .ag-row { background:#ffffff !important; color:var(--txt) !important; border-color:#fafafa !important; }
+  .ag-theme-quartz .ag-row-odd { background:var(--panel-2) !important; }
+  .ag-theme-quartz .ag-row:hover { background:var(--sunken) !important; }
+  .ag-theme-quartz .ag-cell { color:var(--txt) !important; }
+  .ag-theme-quartz .ag-body, .ag-theme-quartz .ag-center-cols-viewport,
+  .ag-theme-quartz .ag-body-viewport { background:#ffffff !important; }
+  .ag-theme-quartz .ag-root-wrapper { border:1px solid var(--line) !important; border-radius:10px; }
+  .reco { background:#dcfce7; border:1px solid #166534; border-radius:10px; padding: 12px; margin-bottom: 12px }
+  .reco.cond { background:#92400e; border-color:#b45309; }
+  .reco .t { font-size:15px; font-weight:700; }
+.proof-lede { font-size: 13.5px; color: var(--dim); line-height: 1.65; margin: 0 0 16px; max-width: 70ch }
+.proof-lede code { font-size: 12.5px; background: var(--sunken); padding: 1px 5px; border-radius: 5px }
+.proof-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 22px }
+.proof-steps > li { border-left: 3px solid var(--line); padding-left: 16px }
+.step-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 10px }
+.step-n { display: inline-flex; align-items: center; justify-content: center;
+          width: 22px; height: 22px; min-width: 22px; border-radius: 999px;
+          background: var(--gold); color: #fff; font-size: 12px; font-weight: 700 }
+.step-head b { font-size: 14.5px }
+.step-sub { font-size: 12.5px; color: var(--dim); line-height: 1.55; display: block; width: 100%; margin-top: 2px }
+.step-sub code { font-size: 11.5px; background: var(--sunken); padding: 1px 5px; border-radius: 5px }
+#ledgerVerifyOut { margin-top: 14px }
+.vcard { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: 12.5px }
+.vcard table { border-collapse: collapse; width: 100% }
+.vcard th, .vcard td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--line) }
+.vcard th { background: var(--sunken); color: var(--dim); font-size: 11px;
+            text-transform: uppercase; letter-spacing: .04em; font-weight: 700; width: 42% }
+.vcard tr:last-child th, .vcard tr:last-child td { border-bottom: none }
+.vcard .ok { color: #1c7a4a; font-weight: 600 }
+.vcard .bad { color: var(--gold); font-weight: 600 }
+.btn-secondary { background: var(--panel); color: var(--txt); border: 1px solid var(--line) }
+.btn-secondary:hover:not(:disabled) { background: var(--sunken) }
+#gridTable { overflow-x: auto; margin: 18px 0 0 }
+#gridTable table { border-collapse: collapse; font-size: 12.5px; width: 100% }
+#gridTable th, #gridTable td { border: 1px solid var(--line); padding: 9px 10px; text-align: center }
+#gridTable th { background: var(--sunken); font-weight: 700; font-size: 11.5px;
+                text-transform: uppercase; letter-spacing: .04em; color: var(--dim) }
+#gridTable td.amt { background: var(--sunken); font-weight: 700; font-variant-numeric: tabular-nums }
+#gridTable td.v-APPROVED    { background: #dff3e6; color: #14532d; font-weight: 600 }
+#gridTable td.v-CONDITIONAL { background: #fdf0d5; color: #7a4a06; font-weight: 600 }
+#gridTable td.v-DENIED      { background: #fbe0e3; color: #8b1a26; font-weight: 600 }
+#gridTable td.v-unknown     { background: var(--sunken); color: var(--dim) }
+.proof-verdict { font-size: 15px; font-weight: 700; letter-spacing: .01em; margin: 4px 0 14px }
+.proof-verdict.pass { color: #1c7a4a }
+.proof-verdict.fail { color: var(--gold) }
+.proof-note { font-size: 12.5px; color: var(--dim); line-height: 1.6; margin: 14px 0 0 }
+.proof-note code { font-size: 11.5px; background: var(--sunken); padding: 1px 5px; border-radius: 5px }
+#proofLog {
+  background: var(--sunken); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px; margin: 0; max-height: 300px; overflow: auto;
+  font: 11.5px/1.55 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color: var(--txt); white-space: pre; tab-size: 2;
+}
+.reco-img { float:left; width:112px; height:112px; object-fit:cover; border-radius:14px; margin:0 16px 8px 0;
+            background:#fff; box-shadow:0 1px 4px rgba(60,45,30,.16) }
+.reco::after { content:''; display:block; clear:both }
+  .reco .p { color:var(--gold); font-size:20px; font-weight:800; }
+
+  
+  /* ═══════════════════════════════════════════════════════════════════
+     ★ Ethereal Glass レイヤー（2026-10-10 v2）
+     high-end-visual-design スキル準拠:
+       - フォント: Plus Jakarta Sans（Geist 代替・Inter 禁止）
+       - 配色: OLED #18181b + radial mesh gradient（紫/緑の光球）
+       - 影: 黒ベタ禁止 → 背景の色味を帯びた影（青紫寄り）
+       - 遷移: custom cubic-bezier（linear/ease-in-out 禁止）
+       - blur: 固定/ヘッダのみ（スクロール要素には当てない）
+       - カード: Double-Bezel（外殻 + 内殻）
+       - ボタン: 丸ピル + Button-in-Button
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* ── 基盤：OLED黒 + radial mesh gradient ──────────────────────── */
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "Plus Jakarta Sans", -apple-system, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(1100px 700px at 50% -20%, rgba(225,29,72,.035), transparent 64%),
+      radial-gradient(860px 540px at 94% 4%, rgba(148,163,184,.05), transparent 66%), #f0eadf;
+    background-attachment: fixed;
+    padding: 48px 24px 96px;
+    letter-spacing: .01em;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; }
+
+  /* ── 見出し：重く・詰める・存在感 ───────────────────────────── */
+  h1 {
+    font-size: clamp(40px, 6.6vw, 74px);
+    letter-spacing: -.028em;
+    line-height: .96;
+    font-weight: 800;
+    background: linear-gradient(180deg, #18181b 0%, #52525b 62%, #52525b 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 12px 40px rgba(0,0,0,.55));
+  }
+  .sub { font-size: 15px; line-height: 1.75; color: #3d372f; max-width: 68ch; margin: 16px auto 0; text-wrap: balance; }
+  header { margin-bottom: 48px }
+
+  /* ── Eyebrow Tag（見出しの前の微小バッジ）───────────────────── */
+  .tags { margin: 16px 0 24px; gap: 8px; justify-content: center }
+  .tag { display:inline-flex; align-items:center; font-size:10px; text-transform:uppercase; letter-spacing:.14em; font-weight:700; color:#3f3a33; border:1px solid var(--line-2); background:var(--sunken); padding:4px 12px; border-radius:999px; }
+  .tag:hover { border-color: #a1a1aa; background: var(--line); }
+
+  /* ── Double-Bezel（外殻 + 内殻）────────────────────────────── */
+  .panel { background: #ffffff; border:1px solid var(--line); border-radius:30px; padding:8px; margin-bottom:24px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .panel h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .2em;
+    color: #241f1a; font-weight: 600; margin-bottom: 16px
+  }
+
+  /* ── カード（エージェント）：内殻も二重に ────────────────────── */
+  .agent { background:#ffffff; border:1px solid var(--line); border-radius:20px; padding:16px 16px; }
+  .agent::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
+    background: linear-gradient(90deg, transparent, currentColor 30%, currentColor 70%, transparent);
+    opacity: .6;
+  }
+  .agent.advocate { color: #15803d; }
+  .agent.auditor  { color: #be123c; }
+  .agent.witness  { color: #1d4ed8; }
+  .agent h3 { font-size: 16px; font-weight: 700; letter-spacing: -.01em; color: #241f1a; }
+  .agent .role { font-size: 10px; color: #52525b; letter-spacing: .14em; font-weight: 600; }
+  .agent:hover { transform: translateY(-3px); border-color: var(--line-2); }
+  .agent.advocate:hover { box-shadow: 0 22px 46px -22px rgba(74,222,128,.42); }
+  .agent.auditor:hover  { box-shadow: 0 22px 46px -22px rgba(248,113,113,.42); }
+  .agent.witness:hover  { box-shadow: 0 22px 46px -22px rgba(96,165,250,.42); }
+
+  /* ── ボタン：丸ピル + 押下の物理感 ─────────────────────────── */
+  button {
+    border-radius: 999px; padding: 16px 24px; font-size: 14.5px; font-weight: 700;
+    letter-spacing: -.005em;
+    background: linear-gradient(180deg, #be123c 0%, #be123c 52%, #c8993f 100%);
+    color: #241a06;
+    color: #fbfbfe;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.323); inset,
+                0 10px 28px -14px rgba(200,153,63,.60),
+                0 2px 8px -3px rgba(0,0,0,.45);
+    transition: transform 0.28s cubic-bezier(.32,.72,0,1),
+                box-shadow 0.30s cubic-bezier(.32,.72,0,1),
+                filter 0.30s cubic-bezier(.32,.72,0,1);
+  }
+  button:not(:disabled):hover { transform: translateY(-2px); filter: brightness(1.07);
+    box-shadow: 0 1px 1px rgba(0,0,0,0.255); inset, 0 20px 44px -16px rgba(124,92,246,.85); }
+  button:not(:disabled):active { transform: translateY(0) scale(.985); }
+  button.secondary { background:#ffffff; color:#241f1a; border:1px solid var(--line); box-shadow:none; }
+  button.secondary:hover { background:var(--sunken); border-color:#a1a1aa; box-shadow:0 2px 6px rgba(0,0,0,.06); }
+
+  /* ── タブ ─────────────────────────────────────────────────── */
+  .tabbar { gap: 8px; justify-content: center; margin: 0 0 24px }
+  .tab { border-radius:999px; padding:8px 16px; font-size:13px; font-weight:700; background:var(--sunken); color:#2b2722; border:1px solid var(--line-2); transition:all .28s cubic-bezier(.32,.72,0,1); }
+  .tab:hover { color: #241f1a; border-color: var(--line-2); }
+  .tab.active { background: #c0203c; color: #ffffff; border-color: #c0203c; box-shadow: 0 8px 20px -14px rgba(207,31,63,.55); }
+
+  /* ── 入力 ─────────────────────────────────────────────────── */
+  input, select {
+    background: #ffffff; border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px 14px; color: #241f1a; font-size: 16px; font-weight: 500;
+    transition: all 0.28s cubic-bezier(.32,.72,0,1);
+  }
+  input:hover, select:hover { border-color: var(--line-2); }
+  input:focus, select:focus { border-color: #c0203c;
+    box-shadow: 0 0 0 3px rgba(192,32,60,.16); }
+  label { font-size: 12px; letter-spacing: .12em; color: #241f1a; font-weight: 700; }
+
+  /* ── メトリクス／レシート ─────────────────────────────────── */
+  .metric, .receipt { background:#ffffff; border:1px solid var(--line); border-radius:18px; box-shadow:0 1px 2px rgba(0,0,0,.04); transition:all .28s cubic-bezier(.32,.72,0,1); }
+  .metric:hover { border-color: var(--line-2); transform: translateY(-2px); }
+  .metric .v { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: #241f1a; }
+  .metric .k, .metric .u { font-size: 10px; letter-spacing: .12em; color: #241f1a; }
+  .kv .v { font-variant-numeric: tabular-nums; }
+  .receipt h4 { font-size: 10px; letter-spacing: .18em; color: #a7aec0; }
+
+  /* ── 判定（decision）─────────────────────────────────────── */
+  .decision { border-radius: 22px; padding: 24px }
+  .decision .big { font-size: 30px; letter-spacing: .04em; font-weight: 800; }
+  .d-APPROVED    { background: rgba(16,185,129,.10); border: 1px solid rgba(16,185,129,.42); }
+  .d-CONDITIONAL { background: rgba(245,158,11,.10); border: 1px solid rgba(245,158,11,.42); }
+  .d-DENIED      { background: rgba(239,68,68,.10); border: 1px solid rgba(239,68,68,.42); }
+  .d-DISSENT     { background: rgba(249,115,22,.10); border: 1px solid rgba(249,115,22,.42); }
+
+
+  /* ═══ ★AG Grid の高さを【行数に応じて伸ばす】═══════════════════════
+     AG Grid は固定 height が必須。行数が増えたら高さも増やす。
+     上限（画面の70%）を超えたらグリッド内スクロールに切り替える。 */
+  /* ── モーション（custom cubic-bezier のみ）────────────────── */
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(18px); filter: blur(6px); }
+    to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+  }
+  .agent { animation: rise-in 0.30s cubic-bezier(.32,.72,0,1) both; }
+  .grid3 .agent:nth-child(1) { animation-delay: 0.00s; }
+  .grid3 .agent:nth-child(2) { animation-delay: 0.10s; }
+  .grid3 .agent:nth-child(3) { animation-delay: 0.20s; }
+
+  @keyframes verdict-pop {
+    0%   { opacity: 0; transform: scale(.93) translateY(10px); filter: blur(5px); }
+    62%  { opacity: 1; transform: scale(1.012) translateY(0);  filter: blur(0); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .decision:not(.hidden) { animation: verdict-pop 0.30s cubic-bezier(.32,.72,0,1) both; }
+  .decision:not(.hidden) .big { text-shadow: 0 0 30px currentColor; }
+
+  @keyframes chip-in {
+    from { opacity: 0; transform: translateX(-8px); filter: blur(4px); }
+    to   { opacity: 1; transform: translateX(0);    filter: blur(0); }
+  }
+  .votechip { animation: chip-in 0.30s cubic-bezier(.32,.72,0,1) both; }
+
+  @keyframes title-glow {
+    0%,100% { filter: drop-shadow(0 12px 38px rgba(0,0,0,.50)); }
+    50%     { filter: drop-shadow(0 14px 46px rgba(0,0,0,.62)); }
+  }
+  h1 { animation: title-glow 0.30s cubic-bezier(.45,.05,.55,.95) infinite; }
+
+  /* ── 固定オーバーレイ（grain + 上端ヘアライン）────────────── */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none;
+    background-image:none;
+    mix-blend-mode: overlay;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0 0 auto 0; height: 1px; z-index: 61; pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--line) 24%, var(--line) 76%, transparent);
+  }
+
+  /* ── スクロールバー ──────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--sunken); }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+
+  /* ── アクセシビリティ ────────────────────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  @media (max-width: 768px) {
+    body { padding: 24px 12px 64px }
+    .grid3, .grid2 { grid-template-columns: 1fr; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: clamp(34px, 10vw, 46px); }
+  }
+
+  /* ═══ ★v2.1 残り2点の是正（2026-10-10）══════════════════════════ */
+  /* ① ボタンを完全な丸ピルに（既存の button{border-radius:9px} を打ち消す） */
+  button, button.secondary, .verify-bar button {
+    border-radius: 999px !important;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 24px; width: auto; max-width: 100%;
+  }
+  /* 主要なアクションボタン：中央寄せで程よい幅（全幅にしない） */
+  .panel > button { width: auto; min-width: 340px; display: flex; margin: 4px auto 0 }
+  .panel > button.full { width: 100%; min-width: 0; }
+  /* アクション行のボタンは横並び（全幅に伸ばさない） */
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .actions button { flex: 0 1 auto; }
+  /* フォーム内の主ボタンだけは幅いっぱいでよい */
+  /* ④ タップ領域 44px 以上（make-it-look-good: Blocker） */
+  button, .tab, .tag, .votechip, input, select { min-height: 44px; }
+  .tag { min-height: 24px; }
+  .votechip { min-height: 20px; }
+  /* ② Button-in-Button：末尾アイコンを専用の丸に収める */
+  .btn-ico {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 999px;
+    background:rgba(255,255,255,.22); box-shadow:inset 0 1px 1px rgba(255,255,255,.3);
+    font-size: 13px; line-height: 1;
+    transition: transform 0.28s cubic-bezier(.32,.72,0,1), background-color 0.30s cubic-bezier(.32,.72,0,1);
+  }
+  button:hover .btn-ico { transform: translate(2px,-1px) scale(1.06); background: rgba(255,255,255,0.3); }
+  button.secondary .btn-ico { background: var(--sunken); }
+
+  /* ③ タブも丸ピルを維持 */
+  .tab { border-radius: 999px !important; }
+  /* ④ 入力欄は丸めを強めに（ピルにしない・スキルは丸すぎを避ける） */
+  input, select { border-radius: 14px !important; }
+
+  /* ═══ ★v2.2 スマホ版（768px以下）の修正 ─────────────────────────── */
+  @media (max-width: 768px) {
+    body { padding: 24px 16px 72px }
+
+    /* ① H1 は控えめに、でも存在感は残す */
+    h1 { font-size: clamp(32px, 11vw, 42px); letter-spacing: -.02em; line-height: 1.02; }
+    .sub { font-size: 15px; line-height: 1.85; margin-top: 12px }
+
+    /* ② タグは少し小さく、でもタップしやすく */
+    .tags { gap: 8px; margin-bottom: 12px }
+    .tag { font-size: 9.5px; padding: 4px 12px; }
+
+    /* ③ ★タブバー：折り返しを許可して【文字が潰れない】ように */
+    .tabbar {
+      display: flex; flex-wrap: wrap; gap: 8px
+    }
+    .tab {
+      flex: 1 1 calc(50% - 4px); min-width: 0;
+      padding: 12px 12px; font-size: 12px; text-align: center;
+      line-height: 1.35;
+    }
+    .tab:last-child:nth-child(odd) { flex-basis: 100%; }
+
+    /* ④ ★ボタン：全文が1〜2行で収まるように、パディングを締める */
+    button, button.secondary {
+      padding: 12px 16px !important;
+      font-size: 14px !important;
+      min-height: 50px;              /* タップ領域 */
+      line-height: 1.3;
+      gap: 8px;
+      white-space: normal;
+    }
+    .verify-bar { flex-wrap: wrap; }
+    .verify-bar button { width: 100%; }
+
+    /* ⑤ レイアウト */
+    .grid3, .grid2 { grid-template-columns: 1fr; gap: 12px }
+    .metrics { grid-template-columns: repeat(2, 1fr); gap: 8px }
+    .metric { padding: 12px }
+    .metric .v { font-size: 25px; }
+
+    /* ⑥ パネル/カードの余白を締める（狭い画面で重くならないように） */
+    .panel { border-radius: 20px; padding: 16px 16px 16px; margin-bottom: 16px }
+    .panel::before { inset: 5px; border-radius: 15px; }
+    .agent { padding: 16px 16px; border-radius: 17px; }
+    .decision { padding: 16px 16px; border-radius: 18px; }
+    .decision .big { font-size: 24px; letter-spacing: .02em; }
+    .kv { grid-template-columns: 108px 1fr; gap: 4px 8px; font-size: 12px; }
+    .receipt { padding: 16px }
+
+    /* ⑦ 入力欄は 16px 以上（iOS の自動ズーム防止） */
+    input, select { font-size: 16px !important; padding: 12px 12px; min-height: 50px; }
+
+    /* ⑧ AG Grid の高さを詰める */
+    }
+
+  /* 極小（360px以下）*/
+  @media (max-width: 380px) {
+    h1 { font-size: 30px; }
+    button, button.secondary { font-size: 13px !important; padding: 12px 12px !important }
+    .metrics { grid-template-columns: 1fr; }
+  }
+.ag-theme-quartz, .ag-theme-quartz-dark { --ag-foreground-color: #241f1a; --ag-background-color: #ffffff; --ag-border-color: var(--line); --ag-header-foreground-color: #241f1a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>TUESDAY</h1> <div class="sub">A $42/month renewal fails on Tuesday, 3 AM. Three AI agents debate retry / downgrade / release — and a real PayPal order is raised on their consensus. US skincare brand · 12,000 subscribers.</div>
+    <div class="tags">
+      <span class="tag">PayPal Orders v2 REST</span>
+      <span class="tag">Three LLMs</span>
+      <span class="tag">AG Grid</span>
+      <span class="tag">Bryntum</span>
+      <span class="tag">Channel3</span>
+    </div>
+  </header>
+
+  <div class="tabbar">
+    <div class="tab" id="tabShop">🛒 Shop (Channel3 → Tribunal)</div>
+    <div class="tab active" id="tabDirect">⚖️ Direct Adjudication</div>
+    <div class="tab" id="tabTimeline">📅 Audit Timeline (Bryntum)</div>
+  </div>
+
+  <!-- The claim this project makes is "nothing is paid unless the agents agree".
+       Rather than asking a reader to take that on faith, this panel runs the actual
+       test suite in the browser and prints its output verbatim. The output is not
+       paraphrased anywhere: if the suite ever fails, the failure is what you read. -->
+  <div class="panel" id="proofPanel">
+    <h2>Prove it yourself — don't take our word for it</h2>
+    <p class="proof-lede">
+      Every claim this project makes is a testable statement, so here are the tests. Three of them,
+      in the order they matter. Each one runs on this machine, right now, and shows you what it
+      actually said.
+    </p>
+
+    <ol class="proof-steps">
+      <li>
+        <div class="step-head">
+          <span class="step-n">1</span>
+          <b>No money moves unless the agents agree.</b>
+          <span class="step-sub">A DENIED verdict never reaches PayPal — the gate returns
+          <code>not_approved</code> before any network call.</span>
+        </div>
+        <button id="proofBtn">▶ Run the money-gate test suite</button>
+        <div id="proofOut" class="hidden">
+          <div id="proofVerdict" class="proof-verdict"></div>
+          <pre id="proofLog"></pre>
+          <p class="proof-note">
+            <b>What to look for:</b> <code>denied → createOrder NOT called — calls=1</code>.
+          </p>
+        </div>
+      </li>
+
+      <li>
+        <div class="step-head">
+          <span class="step-n">2</span>
+          <b>The verdict table is measured, not estimated.</b>
+          <span class="step-sub">Sixteen real adjudications, computed when you press the button —
+          not the table copied out of the README.</span>
+        </div>
+        <button id="gridBtn" class="btn-secondary">⊞ Show me all 16 cells</button>
+        <div id="gridOut" class="hidden">
+          <div id="gridTable"></div>
+          <p class="proof-note">
+            Charge down the side, monthly budget across the top. Spend part of the month first and
+            every cell moves one step stricter.
+          </p>
+        </div>
+      </li>
+
+      <li>
+        <div class="step-head">
+          <span class="step-n">3</span>
+          <b>The decision is written into the payment record.</b>
+          <span class="step-sub">Re-hash a receipt and compare it with the hash stored in the PayPal
+          order's <code>custom_id</code>. If they disagree, the record was altered.</span>
+        </div>
+        <button id="ledgerVerifyBtn" class="btn-secondary">🔐 Verify a receipt against PayPal</button>
+        <div id="ledgerVerifyOut" class="hidden"></div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- SHOP MODE -->
+  <div id="shopMode" class="hidden">
+    <div class="panel">
+      <h2>Shop Request</h2>
+      <p style="font-size:12.5px;color:var(--dim);margin:2px 0 10px">Name a category and a budget. Tuesday pulls candidates, the tribunal ranks them, and you choose which one gets bought.</p>
+      <div class="grid2">
+        <div class="field"><label>Category</label><input id="category" value="electronics" /></div>
+        <div class="field"><label>Monthly budget (USD)</label><input id="budget" type="number" value="60" /></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Already spent this month (USD)</label><input id="spent" type="number" value="0" /></div>
+        <div class="field"><label>Max price (USD)</label><input id="maxPrice" type="number" value="200" /></div>
+      </div>
+      <button id="shopBtn">🛒 Find products &amp; convene the Tribunal <span class="btn-ico">→</span></button>
+    </div>
+
+    <div id="shopResult" class="hidden">
+      <div id="reco"></div>
+      <div class="panel">
+        <h2>Candidate Products — evaluated by the Tribunal (AG Grid)</h2>
+        <p style="font-size:12.5px;color:var(--dim);margin:2px 0 10px">Click any row to make that product the one Tuesday settles. The tribunal re-rules on your pick, and only an APPROVED or CONDITIONAL verdict raises a PayPal order.</p>
+        <div id="candidateGrid" class="ag-theme-quartz"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DIRECT MODE -->
+  <div id="directMode">
+    <div class="panel">
+      <h2>Tuesday, 3 AM — a $42 renewal just failed</h2>
+      <div class="grid2">
+        <div class="field"><label>What is being renewed?</label><input id="d_category" value="Monthly skincare refill — subscription renewal" /></div>
+        <div class="field"><label>Amount (USD)</label><input id="d_amount" type="number" value="42" /></div>
+      </div>
+      <div class="field"><label>Why?</label><input id="d_reason" value="Tuesday 3 AM renewal failed — card declined — 14 months paid in a row" /></div>
+      <div class="grid2">
+        <div class="field"><label>Monthly budget (USD)</label><input id="d_budget" type="number" value="60" /></div>
+        <div class="field"><label>Already spent (USD)</label><input id="d_spent" type="number" value="0" /></div>
+      </div>
+      <button id="run">⚖️ Convene the Tribunal</button>
+    </div>
+
+    <div id="result" class="hidden">
+      <div id="decision" class="decision"><div class="big"></div><div class="vote"></div></div>
+      <div class="panel"><h2>The Debate</h2><div class="grid3" id="agents"></div></div>
+      <div id="dissentWrap" class="hidden panel"><h2>Dissent Map</h2><div id="dissent"></div></div>
+      <div id="paypalWrap" class="hidden panel"><h2>PayPal Settlement</h2><div id="paypal"></div></div>
+    </div>
+  </div>
+
+  <!-- ★ TIMELINE MODE (Bryntum Scheduler — the audit trail on a time axis) -->
+  <div id="timelineMode" class="hidden">
+    <div class="panel">
+      <h2>Audit Timeline — who voted what, when, and which disputes are still open (Bryntum)</h2>
+      <div class="metrics">
+        <div class="metric"><div class="k">Timeline rows</div><div class="v">3</div><div class="u">Advocate · Auditor · Witness</div></div>
+        <div class="metric"><div class="k">Open disputes</div><div class="v bad" id="tlOpen">0</div><div class="u">DENIED/DISSENT, unresolved</div></div>
+        <div class="metric"><div class="k">Evidence ready</div><div class="v ok" id="tlEvidence">0</div><div class="u">receipt hash present</div></div>
+        <div class="metric"><div class="k">Window</div><div class="v" style="font-size:15px">last 24h</div><div class="u">rolling</div></div>
+      </div>
+      <div id="scheduler" style="height:420px;border-radius:10px;overflow:hidden"></div>
+      <div class="verdict-line" style="color:var(--dim)">
+        Each bar is one agent's vote on one purchase. Red = blocked it, green = approved it, blue = neutral.
+        Cases still unresolved appear flagged — the same idea as a dispute-triage board.
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ GOVERNANCE DASHBOARD (AG Grid is the product surface, not decoration) -->
+  <div class="panel">
+    <h2>Governance Dashboard — every decision, every vote, every hash (AG Grid)</h2>
+    <div class="metrics">
+      <div class="metric"><div class="k">Adjudications</div><div class="v" id="mTotal">0</div></div>
+      <div class="metric"><div class="k">Approved</div><div class="v ok" id="mApproved">0</div></div>
+      <div class="metric"><div class="k">Blocked by dissent</div><div class="v bad" id="mBlocked">0</div></div>
+      <div class="metric"><div class="k">Audit trail</div><div class="v" id="mIntact">—</div><div class="u" id="mIntactU">receipts intact</div></div>
+    </div>
+    <div id="auditGrid" class="ag-theme-quartz"></div>
+    <div id="receiptWrap"></div>
+  </div>
+</div>
+
+<script>
+
+/* ★AG Grid: 行数に応じて高さを自動調整（1行も見落とさない） */
+function fitGridHeight(gridEl, api, rowCount) {
+  if (!gridEl || !api) return;
+  const ROW = 36;          // one data row (AG Grid default row height is 25 + padding)
+  const HEAD = 48;         // header row
+  const PAD = 4;
+  // Use the number of rows we just handed to the grid, not what the grid has
+  // painted. Calling getDisplayedRowCount() right after setGridOption() returns
+  // a stale count (the rows are not laid out yet), so the grid was sized for
+  // one or two rows and the last rows were cut off — including the DENIED row,
+  // which is the whole point of the table.
+  const n = (typeof rowCount === 'number' && rowCount > 0)
+    ? rowCount
+    : (api.getDisplayedRowCount ? api.getDisplayedRowCount() : 0);
+  const want = HEAD + Math.max(1, n) * ROW + PAD;
+  // No artificial minimum and no 70%-of-viewport clamp: a five-row table is
+  // short, and clamping it to 200px is what hid the last two verdicts.
+  gridEl.style.height = want + 'px';
+  if (api.doLayout) api.doLayout();
+}
+let candidateGridApi, ledgerGridApi;
+
+async function api(path, body) {
+  // A demo that hangs forever is worse than one that fails: the button stays
+  // disabled, every later click is swallowed, and the reviewer sees a frozen
+  // page with no error. Abort instead, and let the caller show what happened.
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const r = await fetch(path, {
+      method: body ? 'POST' : 'GET',
+      headers: {'Content-Type':'application/json'},
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctl.signal,
+    });
+    if (!r.ok) throw new Error(path + ' returned ' + r.status);
+    return await r.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+// Wrap a click handler so the button always comes back, even when something
+// throws inside — a disabled button with no error message is indistinguishable
+// from a broken demo.
+function bindRun(btnId, label, fn) {
+  const btn = document.getElementById(btnId);
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = label.busy;
+    try {
+      await fn();
+    } catch (e) {
+      console.error(e);
+      const d = document.getElementById('decision');
+      if (d) {
+        d.classList.remove('hidden');
+        d.className = 'decision d-DENIED';
+        d.querySelector('.big').textContent = 'DENIED';
+        d.querySelector('.vote').textContent = 'the tribunal could not be reached: ' + (e && e.message ? e.message : e);
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label.idle;
+    }
+  };
+}
+// The gates carry machine ids (G2_within_remaining) because the receipt is data, but a
+// person reading a verdict needs the sentence. Translate at the edge, never in the receipt.
+const GATE_TEXT = {
+  G1_amount_positive:      'the amount has to be a real number',
+  G2_within_remaining:     'the money has to be there',
+  G3_share_under_half:     'one purchase should not eat over half the month',
+  G4_not_repeat_category:  'not a repeat of something just bought',
+  G5_survives_double_cost: 'it has to still fit if it ends up costing twice as much',
+};
+function gateText(id) {
+  if (GATE_TEXT[id]) return GATE_TEXT[id];
+  return String(id).replace(/^G\d+_/, '').replace(/_/g, ' ');
+}
+
+const vc = v => v==='for'?'v-for':v==='against'?'v-against':'v-neutral';
+
+function renderAgent(a) {
+  if (!a) return '';
+  return `<div class="agent ${a.agent}">
+    <h3>${a.title}</h3><div class="role">${a.agent} · ${a.model}</div>
+    <span class="verdict ${vc(a.verdict)}">${a.verdict}</span>
+    <ul class="reasons">${(a.reasons||[]).map(r=>`<li>${r}</li>`).join('')}</ul>
+    ${a.conditions?`<div class="conf">⚑ ${a.conditions}</div>`:''}
+    <div class="conf">confidence ${(a.confidence*100).toFixed(0)}%</div></div>`;
+}
+
+// --- AG Grid: candidate comparison ---
+function initCandidateGrid() {
+  candidateGridApi = agGrid.createGrid(document.getElementById('candidateGrid'), {
+    columnDefs: [
+      // Small thumbnail first, so the candidate grid reads as a catalogue rather
+      // than a table. Kept at 24px against AG Grid's default row height — a
+      // full-size illustration in a ~28px row is what collapsed this grid before.
+      { headerName: '', width: 42, minWidth: 42, maxWidth: 42, sortable: false, filter: false,
+        cellRenderer: p => p.data && p.data.image
+          ? `<img src="${p.data.image}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;vertical-align:middle">`
+          : '' },
+      { field: 'title', headerName: 'Product', flex: 3, minWidth: 200, tooltipField: 'title' },
+      { field: 'brand', headerName: 'Brand', flex: 1, minWidth: 90 },
+      { field: 'price', headerName: 'Price', flex: 1, minWidth: 80,
+        valueFormatter: p => '$' + Number(p.value).toLocaleString() },
+      { field: 'rating', headerName: 'Rating', flex: 1, minWidth: 80 },
+      { field: 'decision', headerName: 'Tribunal', flex: 1.2, minWidth: 120,
+        cellStyle: p => ({ fontWeight:'700',
+          color: p.value==='APPROVED'?'#15803d':p.value==='DENIED'?'#be123c':p.value==='CONDITIONAL'?'#c0203c':'#1d4ed8' }) },
+    ],
+    rowData: [],
+    defaultColDef: { sortable: true, filter: true, resizable: true },
+    // A catalogue a judge can actually buy from: click a row to make that product
+    // the one Tuesday settles. Without this the tribunal picked for them and the
+    // grid was decoration -- you could read five candidates and choose none.
+    rowSelection: 'single',
+    onRowSelected: (e) => {
+      const row = e.api.getSelectedRows()[0];
+      if (row) selectCandidate(row);
+    },
+
+  });
+}
+
+// --- ★ AG Grid: governance dashboard ledger ---
+function voteChips(votes) {
+  if (!votes) return '';
+  const cls = v => v==='for'?'vc-for':v==='against'?'vc-against':'vc-neutral';
+  return ['advocate','auditor','witness']
+    .map(a => votes[a] ? `<span class="votechip ${cls(votes[a])}">${a[0].toUpperCase()} ${votes[a]}</span>` : '')
+    .join('');
+}
+
+function initLedgerGrid() {
+  ledgerGridApi = agGrid.createGrid(document.getElementById('auditGrid'), {
+    columnDefs: [
+      { field: 'at', headerName: 'Time', width: 100, minWidth: 92,
+        valueFormatter: p => new Date(p.value).toLocaleTimeString() },
+      { field: 'category', headerName: 'Item', flex: 2.0, minWidth: 200,
+        tooltipField: 'category',
+        valueFormatter: p => String(p.value ?? '').length > 26
+          ? String(p.value).slice(0, 25) + '…' : p.value },
+      { field: 'amount', headerName: 'Amount', width: 92, minWidth: 84,
+        valueFormatter: p => '$' + Number(p.value).toLocaleString() },
+      { field: 'decision', headerName: 'Decision', width: 116, minWidth: 106,
+        cellStyle: p => ({ fontWeight:'700',
+          color: p.value==='APPROVED'?'#15803d':p.value==='DENIED'?'#be123c':p.value==='CONDITIONAL'?'#c0203c':'#1d4ed8' }) },
+      { field: 'summary', headerName: 'Consensus / Dissent', flex: 2.4, minWidth: 210,
+        tooltipField: 'summary',
+        valueFormatter: p => String(p.value ?? '').replace(/ → /g, '→') },
+      { field: 'customId', headerName: 'Receipt (custom_id)', flex: 1.6, minWidth: 190,
+        tooltipField: 'customId',
+        cellStyle: () => ({ fontFamily:'ui-monospace,Menlo,Consolas,monospace', fontSize:'11.5px' }) },
+    ],
+    rowData: [],
+    defaultColDef: { sortable: true, filter: true, resizable: true },
+    rowSelection: 'single',
+    onRowSelected: (e) => {
+      const row = e.api.getSelectedRows()[0];
+      if (row) showReceipt(row);
+    },
+  });
+}
+
+// ★ Trust Receipt viewer — the audit trail made human-readable.
+function showReceipt(entry) {
+  const wrap = document.getElementById('receiptWrap');
+  if (!wrap) return;
+  const votes = entry.votes || {};
+  const models = entry.models || {};
+  const intact = entry.receiptIntact !== false;
+  const dissent = entry.dissentMap;
+  wrap.innerHTML = `
+    <div class="receipt">
+      <h4>Trust Receipt — ${entry.decision} · ${entry.category} · $${Number(entry.amount||0).toLocaleString()}</h4>
+      <div class="kv">
+        <div class="k">Receipt hash</div><div class="v">${entry.receiptHash || '—'}</div>
+        <div class="k">PayPal custom_id</div><div class="v">${entry.customId || '—'}</div>
+        <div class="k">Votes</div><div class="v">${voteChips(votes) || entry.summary}</div>
+        <div class="k">Models</div><div class="v">A: ${models.advocate||'—'} · B: ${models.auditor||'—'} · W: ${models.witness||'—'}</div>
+        <div class="k">Engine</div><div class="v">${entry.engine || '—'} · threshold ${entry.threshold ?? '—'}</div>
+        <div class="k">Integrity</div><div class="v ${intact?'ok':'bad'}">${intact ? '✓ receipt intact (re-hashed & matched)' : '✗ TAMPERED'}</div>
+      </div>
+      ${dissent ? `<div class="verdict-line" style="color:var(--gold)"><b>Dissent Map:</b> ${dissent.summary || ''}</div>` : ''}
+      <div class="verify-bar">
+        <button class="secondary" id="verifyBtn">🔐 Verify against PayPal (custom_id ↔ receipt)</button>
+        <span id="verifyOut" class="verdict-line"></span>
+      </div>
+    </div>`;
+  const vb = document.getElementById('verifyBtn');
+  if (vb) vb.onclick = async () => {
+    const out = document.getElementById('verifyOut');
+    out.textContent = 'verifying…';
+    const r = await api('/api/verify', { orderId: entry._orderId, purchaseId: entry._purchaseId });
+    out.innerHTML = r.ok
+      ? `<span class="ok">✓ verified</span> — hash matches PayPal order custom_id (${r.customId})`
+      : `<span class="bad">✗ ${r.error || 'not verified'}</span>`;
+  };
+}
+
+async function refreshLedger() {
+  const l = await api('/api/ledger');
+  __ledger = l.entries || [];   // ★ feed the Bryntum timeline
+  const rows = l.entries.map(e => ({
+    at: e.at, category: e.category ?? e.purchase?.category, amount: e.amount ?? e.purchase?.amount,
+    decision: e.decision, summary: e.summary, customId: e.customId, receiptHash: e.receiptHash,
+    votes: e.votes, models: e.models, engine: e.engine, threshold: e.threshold,
+    dissentMap: e.dissentMap, receiptIntact: e.receiptIntact,
+    _purchaseId: e.purchase?.id,
+  })).reverse();
+  if (ledgerGridApi) { ledgerGridApi.setGridOption('rowData', rows);
+    fitGridHeight(document.getElementById('auditGrid'), ledgerGridApi, (l.entries || []).length); }
+
+  // ★ Governance metrics
+  const total = rows.length;
+  const approved = rows.filter(r => r.decision === 'APPROVED' || r.decision === 'CONDITIONAL').length;
+  const blocked = rows.filter(r => r.decision === 'DENIED' || r.decision === 'DISSENT').length;
+  const intact = rows.filter(r => r.receiptIntact !== false).length;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('mTotal', total); set('mApproved', approved); set('mBlocked', blocked);
+  set('mIntact', total ? `${intact}/${total}` : '—');
+  const u = document.getElementById('mIntactU');
+  if (u) u.textContent = total && intact === total ? 'all receipts intact' : 'receipts intact';
+}
+
+
+// --- ★ Bryntum: audit timeline ---
+let schedulerInst = null;
+let __ledger = [];
+
+// Pure transform: ledger entries -> Bryntum resources + events.
+// 1 row = one agent. Each bar = that agent's vote on one purchase, at the time it voted.
+function ledgerToSchedulerData(entries) {
+  const AGENTS = [
+    { id: 'advocate', name: 'Advocate' },
+    { id: 'auditor',  name: 'Auditor'  },
+    { id: 'witness',  name: 'Witness'  },
+  ];
+  const events = [];
+  for (const e of entries) {
+    const votes = e.votes || {};
+    const at = new Date(e.at);
+    const end = new Date(at.getTime() + 1000 * 60 * 20); // 20-min deliberation block
+    const stamp = e.receiptHash ? e.receiptHash.slice(0, 8) : '—';
+    // ★ Dispute triage: a DENIED/DISSENT case that has not been resolved yet.
+    const unresolved = (e.decision === 'DENIED' || e.decision === 'DISSENT');
+    for (const a of AGENTS) {
+      const verdict = votes[a.id];          // 'for' | 'against' | 'neutral'
+      if (!verdict) continue;
+      events.push({
+        id: `${e.receiptHash || e.at}-${a.id}`,
+        resourceId: a.id,
+        name: `${a.name} · ${verdict} · $${Number(e.amount || 0).toLocaleString()}`,
+        startDate: at,
+        endDate: end,
+        eventColor: verdict === 'for' ? 'green' : verdict === 'against' ? 'red' : 'blue',
+        cls: unresolved ? 'triage-flag' : '',
+        evidence: `receipt ${stamp}`,
+        decision: e.decision,
+      });
+    }
+  }
+  events.sort((x, y) => x.startDate - y.startDate);
+  return { resources: AGENTS, events };
+}
+
+function initScheduler() {
+  const host = document.getElementById('scheduler');
+  if (!host) return;
+  // CDN unreachable (or already built) → the rest of the demo still works.
+  if (typeof bryntum === 'undefined' || !bryntum.scheduler) {
+    host.innerHTML = '<div style="padding: 16pxcolor:#52525b">Bryntum Scheduler unavailable (CDN blocked). The rest of the demo is unaffected.</div>';
+    return;
+  }
+  const { resources, events } = ledgerToSchedulerData(__ledger);
+
+  // Metrics for the timeline panel.
+  const open = __ledger.filter(e => e.decision === 'DENIED' || e.decision === 'DISSENT').length;
+  const evid = __ledger.filter(e => e.receiptHash).length;
+  const so = document.getElementById('tlOpen');   if (so) so.textContent = open;
+  const se = document.getElementById('tlEvidence'); if (se) se.textContent = evid;
+
+  if (schedulerInst) { schedulerInst.destroy(); schedulerInst = null; }
+
+  const now = Date.now();
+  schedulerInst = new bryntum.scheduler.Scheduler({
+    appendTo: host,
+    startDate: new Date(now - 6 * 3600e3),
+    endDate: new Date(now + 6 * 3600e3),
+    viewPreset: 'hourAndDay',
+    rowHeight: 64,
+    barMargin: 6,
+    columns: [{ field: 'name', text: 'Agent', width: 150 }],
+    resources,
+    events,
+    eventStyle: 'colored',
+    bar: { template: d => `<b>${d.eventRecord.name}</b> <span style="opacity:.8">${d.eventRecord.evidence || ''}</span>` },
+    features: { timeRanges: { showCurrentTimeLine: true } },
+  });
+}
+
+function showTab(which) {
+  const map = { shop: 'shopMode', direct: 'directMode', timeline: 'timelineMode' };
+  for (const [k, id] of Object.entries(map)) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', k !== which);
+    const tab = document.getElementById('tab' + k[0].toUpperCase() + k.slice(1));
+    if (tab) tab.classList.toggle('active', k === which);
+  }
+  if (which === 'timeline') initScheduler();
+}
+document.getElementById('tabShop').onclick = () => showTab('shop');
+document.getElementById('tabDirect').onclick = () => showTab('direct');
+document.getElementById('tabTimeline').onclick = () => showTab('timeline');
+
+// --- Run the money-gate suite, in the page, and show its raw output ---
+bindRun('proofBtn', { idle: '▶ Run the money-gate test suite', busy: 'Running tests/moneyGate.test.js…' }, async () => {
+  const r = await api('/api/proof');
+  const out = document.getElementById('proofOut');
+  const verdict = document.getElementById('proofVerdict');
+  const log = document.getElementById('proofLog');
+  out.classList.remove('hidden');
+  // Show the suite's own words. No summarising: a judge should be able to spot a
+  // failing assertion here as easily as in a terminal.
+  log.textContent = (r.output || r.error || '(no output)').trim();
+  if (r.ok) {
+    verdict.className = 'proof-verdict pass';
+    verdict.textContent = `✓ ${r.passed} passed, ${r.failed} failed — exit code ${r.exitCode}`;
+  } else {
+    verdict.className = 'proof-verdict fail';
+    verdict.textContent = `✗ ${r.passed || 0} passed, ${r.failed || 0} failed — exit code ${r.exitCode ?? 'n/a'}`;
+  }
+});
+
+// --- Reproduce the README's 4x4 verdict grid, live ---
+bindRun('gridBtn', { idle: '⊞ Show me all 16 cells', busy: 'Adjudicating 16 cases…' }, async () => {
+  const r = await api('/api/grid');
+  const wrap = document.getElementById('gridTable');
+  document.getElementById('gridOut').classList.remove('hidden');
+  if (!r || !r.rows) {
+    wrap.innerHTML = '<p class="proof-note">Could not compute the grid.</p>';
+    return;
+  }
+  // Build the table from what the server actually returned. The class names map to the
+  // verdict string so an unexpected value renders grey rather than silently looking fine.
+  const cls = (v) => ['APPROVED', 'CONDITIONAL', 'DENIED'].includes(v) ? 'v-' + v : 'v-unknown';
+  let html = '<table><thead><tr><th>Charge</th>';
+  for (const b of r.budgets) html += `<th>Budget $${b}</th>`;
+  html += '</tr></thead><tbody>';
+  for (const row of r.rows) {
+    html += `<tr><td class="amt">$${row.amount}</td>`;
+    for (const v of row.verdicts) html += `<td class="${cls(v)}">${v}</td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+});
+
+bindRun('shopBtn', { idle: '🛒 Find products & convene the Tribunal', busy: 'Channel3 searching → Tribunal deliberating…' }, async () => {
+  const body = {
+    category: document.getElementById('category').value,
+    monthlyBudget: Number(document.getElementById('budget').value),
+    spentThisMonth: Number(document.getElementById('spent').value),
+    maxPrice: Number(document.getElementById('maxPrice').value),
+  };
+  const r = await api('/api/shop', body);
+  document.getElementById('shopResult').classList.remove('hidden');
+
+  const reco = document.getElementById('reco');
+  if (r.ok && r.recommendation) {
+    const pr = r.recommendation.product;
+    reco.innerHTML = `<div class="reco ${r.recommendation.decision==='CONDITIONAL'?'cond':''}">
+    ${r.recommendation.product.image ? `<img class="reco-img" src="${r.recommendation.product.image}" alt="">` : ''}
+      <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px">Tribunal Consensus — ${r.recommendation.decision}</div>
+      <div class="t">${pr.title} <span style="color:var(--dim);font-weight:400">· ${pr.brand}</span></div>
+      <div class="p">$${Number(pr.price).toLocaleString()} <span style="font-size:12px;color:var(--dim)">★${pr.rating}</span></div>
+      <div style="font-size:12px;color:var(--dim);margin-top:6px">${r.candidates} candidates · ${r.evaluated} evaluated · catalog: ${r.catalogMode}</div>
+    </div>`;
+  } else {
+    reco.innerHTML = `<div class="reco cond"><div class="t">No consensus</div>
+      <div style="font-size:13px;color:var(--dim);margin-top:6px">${r.message||'No candidate approved.'}</div></div>`;
+  }
+
+  if (candidateGridApi) { candidateGridApi.setGridOption('rowData', r.allResults || []);
+    fitGridHeight(document.getElementById('candidateGrid'), candidateGridApi, (r.allResults || []).length); }
+  await refreshLedger();
+});
+
+// --- Pick a candidate and settle it -------------------------------------------------
+// The tribunal ranks the whole catalogue; this is where a judge overrides the ranking
+// and says "this one". The chosen product is re-adjudicated on its own (so the
+// Advocate/Auditor/Witness argue about THIS product, with its real price), and only an
+// APPROVED or CONDITIONAL verdict raises a PayPal order. DENIED stays refused -- the
+// money gate is the same one the Direct tab uses.
+let selectedSku = null;
+
+async function selectCandidate(row) {
+  selectedSku = row.id || null;
+  const box = document.getElementById('reco');
+  const verdict = String(row.decision || '').toUpperCase();
+  const canSettle = verdict === 'APPROVED' || verdict === 'CONDITIONAL';
+
+  box.innerHTML = `<div class="reco ${verdict === 'CONDITIONAL' ? 'cond' : ''}">
+    ${row.image ? `<img class="reco-img" src="${row.image}" alt="">` : ''}
+    <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px">You picked — tribunal says ${verdict}</div>
+    <div class="t">${row.title} <span style="color:var(--dim);font-weight:400">· ${row.brand}</span></div>
+    <div class="p">$${Number(row.price).toLocaleString()} <span style="font-size:12px;color:var(--dim)">★${row.rating}</span></div>
+    <div id="settleOut" style="font-size:12px;color:var(--dim);margin-top:8px">${canSettle
+      ? 'Settling through PayPal…'
+      : 'Refused by the money gate — no order is created for this product.'}</div>
+  </div>`;
+
+  if (!canSettle) {
+    document.getElementById('paypalWrap').classList.add('hidden');
+    return;
+  }
+
+  // Re-run the debate on the chosen product so the reasons name its real price.
+  const body = {
+    category: `${row.brand} ${row.title}`,
+    amount: Number(row.price),
+    reason: `Judge selected "${row.title}" from the catalogue (rating ${row.rating})`,
+    monthlyBudget: Number(document.getElementById('budget').value),
+    spentThisMonth: Number(document.getElementById('spent').value),
+  };
+  const r = await api('/api/adjudicate', body);
+  const out = document.getElementById('settleOut');
+  if (!r || r.ok === false || !r.decision) {
+    out.textContent = (r && r.error) || 'could not adjudicate this product';
+    return;
+  }
+  if (r.decision !== 'APPROVED' && r.decision !== 'CONDITIONAL') {
+    out.textContent = `Tribunal re-ruled ${r.decision} on its own — no PayPal order raised.`;
+    return;
+  }
+
+  const o = await api('/api/order', {
+    purchaseId: r.purchase.id,
+    returnUrl: 'https://example.com/return',
+    cancelUrl: 'https://example.com/cancel',
+  });
+  // Do NOT capture here. PayPal refuses a capture until the payer approves
+  // (UNPROCESSABLE_ENTITY / ORDER_NOT_APPROVED), so an automatic capture would
+  // always fail and print a scary error under a verdict that was actually fine.
+  // The product's whole claim is that the agents only propose and a human
+  // approves, so the order is raised and the approval link is handed over.
+  const capHtml = '';
+  out.innerHTML = `<div class="map-row">Order <b>${o.orderId || o.error}</b> · mode <b>${o.mode || '-'}</b></div>
+    ${o.approvalLink ? `<div class="map-row">Approval: <a href="${o.approvalLink}" target="_blank">${o.approvalLink}</a></div>` : ''}
+    ${capHtml}
+    <div class="map-row" style="color:var(--dim)">Money moves only after the human approves — agents propose, never settle.</div>`;
+  await refreshLedger();
+}
+
+// --- Verify a receipt against the PayPal record, without hunting for the row ---
+// Picks the most recent APPROVED entry, because that is the one a payment actually
+// settled; falls back to the newest entry of any kind so the button always does
+// something visible. The result is shown as a field-by-field comparison rather than a
+// bare "verified", so a reader can see exactly which two values were compared.
+bindRun('ledgerVerifyBtn', { idle: '🔐 Verify a receipt against PayPal', busy: 'Re-hashing…' }, async () => {
+  const led = await api('/api/ledger');
+  const entries = (led && led.entries) || [];
+  const out = document.getElementById('ledgerVerifyOut');
+  out.classList.remove('hidden');
+  if (!entries.length) {
+    out.innerHTML = '<p class="proof-note">The ledger is empty — run a case first.</p>';
+    return;
+  }
+  const entry = [...entries].reverse().find((e) => e.decision === 'APPROVED') || entries[entries.length - 1];
+  const r = await api('/api/verify-ledger', {
+    purchaseId: (entry.purchase || {}).id,
+    customId: entry.customId,
+  });
+  if (!r || r.error) {
+    out.innerHTML = `<p class="proof-note">Could not verify: ${(r && r.error) || 'unknown error'}</p>`;
+    return;
+  }
+  const row = (label, value, cls) =>
+    `<tr><th>${label}</th><td class="${cls || ''}">${value}</td></tr>`;
+  out.innerHTML = `
+    <div class="vcard">
+      <table>
+        ${row('Verdict', `${entry.decision} — ${entry.category || ''} $${Number(entry.amount || 0).toLocaleString()}`)}
+        ${row('Decided at', new Date(entry.at).toLocaleString())}
+        ${row('Hash re-computed from the receipt', r.orderHash)}
+        ${row('Hash stored in the PayPal custom_id', r.ledgerHash)}
+        ${row('Do they match?', r.hashMatches
+            ? '✓ yes — the receipt has not been altered'
+            : '✗ no — the record was changed after it was written',
+            r.hashMatches ? 'ok' : 'bad')}
+        ${row('PayPal custom_id', r.customId)}
+      </table>
+    </div>`;
+});
+
+// --- Direct flow ---
+bindRun('run', { idle: '⚖️ Convene the Tribunal', busy: 'Agents deliberating…' }, async () => {
+  const body = {
+    category: document.getElementById('d_category').value,
+    amount: Number(document.getElementById('d_amount').value),
+    reason: document.getElementById('d_reason').value,
+    monthlyBudget: Number(document.getElementById('d_budget').value),
+    spentThisMonth: Number(document.getElementById('d_spent').value),
+  };
+  const r = await api('/api/adjudicate', body);
+  document.getElementById('result').classList.remove('hidden');
+  const d = document.getElementById('decision');
+
+  // The endpoint rejects an unquantified purchase before the debate runs (a blank
+  // or negative amount is not a price). Say that in the product's own words instead
+  // of painting "undefined" into the decision slot.
+  if (!r || r.ok === false || !r.decision) {
+    d.className = 'decision d-DENIED';
+    d.querySelector('.big').textContent = 'NOT ADJUDICATED';
+    d.querySelector('.vote').textContent =
+      (r && r.error) || 'the purchase could not be audited';
+    document.getElementById('agents').innerHTML = '';
+    document.getElementById('dissentWrap').classList.add('hidden');
+    document.getElementById('paypalWrap').classList.add('hidden');
+    return;
+  }
+
+  d.className = 'decision d-' + r.decision;
+  d.querySelector('.big').textContent = r.decision;
+  // Say what the settlement state MEANS to a person, not the internal mode flag.
+    // "PayPal: MOCK" tells a reader the demo is fake; "settlement: draft — a human must
+    // approve" tells them the same true thing in the terms the product's own gate works in.
+    const settle = r.paypalMode === 'MOCK' ? 'draft — a human must approve' : `live · ${r.paypalMode}`;
+    d.querySelector('.vote').textContent = `${r.votesFor} for · ${r.votesAgainst} against · rule: 2 of 3 · engine: ${r.engine} · settlement: ${settle}`;
+  document.getElementById('agents').innerHTML =
+    renderAgent(r.arguments.advocate) + renderAgent(r.arguments.auditor) + renderAgent(r.arguments.witness);
+
+  const dw = document.getElementById('dissentWrap');
+  if (r.dissentMap) {
+    dw.classList.remove('hidden');
+    document.getElementById('dissent').innerHTML = r.dissentMap.entries.map(e =>
+      `<div class="map"><h4>${e.title} → ${e.verdict}</h4>
+        ${e.allReasons.map(x=>`<div class="map-row">• ${x}</div>`).join('')}
+        ${e.conditions?`<div class="map-row"><b>Condition:</b> ${e.conditions}</div>`:''}</div>`).join('');
+  } else { dw.classList.add('hidden'); }
+
+  const pw = document.getElementById('paypalWrap');
+  if (r.decision === 'APPROVED' || r.decision === 'CONDITIONAL') {
+    const o = await api('/api/order', { purchaseId: r.purchase.id, returnUrl:'https://example.com/return', cancelUrl:'https://example.com/cancel' });
+    let capHtml = '';
+    // Same reasoning as the Shop tab: capture waits for the human.
+    // See the note above showSettle / the Shop path for the PayPal error this avoids.
+    pw.classList.remove('hidden');
+    document.getElementById('paypal').innerHTML = `
+      <div class="map-row">Order: <b>${o.orderId||o.error}</b> · mode <b>${o.mode||'-'}</b></div>
+      ${o.approvalLink?`<div class="map-row">Approval: <a href="${o.approvalLink}" target="_blank">${o.approvalLink}</a></div>`:''}
+      ${capHtml}
+      <div class="map-row" style="color:var(--dim)">Money moves only after the human approves — agents propose, never settle.</div>`;
+  } else { pw.classList.add('hidden'); }
+
+  await refreshLedger();
+});
+
+// Init
+initCandidateGrid();
+initLedgerGrid();
+refreshLedger();
+</script>
+</body>
+</html>

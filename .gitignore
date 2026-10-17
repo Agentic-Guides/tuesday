@@ -1,0 +1,50 @@
+node_modules/
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
+.wrangler/
+dist/
+build/
+*.zip
+*.bak
+*.before*.bak
+
+# The video build directory holds large intermediates -- Kokoro wavs, per-beat
+# clips, the take -- that a judge does not need. The three scripts that MAKE the
+# video do belong in the repo: the README says how the video was produced, and a
+# claim about a build should ship with the build.
+#
+# Note the shape: `devpost-video/*` with a re-include for *.py, NOT
+# `devpost-video/`. Git never descends into an excluded directory, so a
+# `!devpost-video/*.py` line after `devpost-video/` cannot re-include anything
+# (measured: git check-ignore still matched the scripts).
+devpost-video/*
+!devpost-video/*.py
+
+# Editor/rollback backups — never commit these
+*.before-jpg
+*.before-imgsize
+*.before-*
+
+# OAuth credentials -- never commit these
+*client_secret*
+*token*
+*credentials*
+client_secret.json
+youtube_token.json
+
+# Raw recording material. The demo video belongs on YouTube and Devpost, not in the
+# repository: the takes under _take/ added ~500MB to .git (take1.mp4 alone is 99MB),
+# which makes a clone slow for anyone the judges send to this repo. The finished
+# video is linked from the README and from the submission form.
+#
+# Same shape as devpost-video above: `*` with a re-include, because git never
+# descends into an excluded directory.
+_take/*
+!_take/.gitkeep
+out/
+_tts/
+_shot/
+

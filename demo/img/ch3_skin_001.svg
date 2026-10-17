@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Hyaluronic Acid Serum">
+  <defs><linearGradient id="g0" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#e8d4c8"/><stop offset="1" stop-color="#e8d4c8" stop-opacity=".5"/>
+  </linearGradient></defs>
+  <rect width="160" height="160" rx="14" fill="url(#g0)"/>
+  <rect x="62" y="72" width="36" height="58" rx="6" fill="#c9a68f" opacity=".92"/><rect x="73" y="44" width="14" height="30" rx="3" fill="#c9a68f" opacity=".7"/><rect x="69" y="38" width="22" height="8" rx="4" fill="#c9a68f"/><rect x="68" y="88" width="24" height="28" rx="3" fill="#ffffff" opacity=".45"/>
+  <text x="80" y="147" text-anchor="middle" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif"
+        font-size="9.5" font-weight="700" fill="#2b2620" opacity=".85">LUMEN SKIN</text>
+</svg>

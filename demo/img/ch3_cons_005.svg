@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Folders A4">
+  <defs><linearGradient id="g4" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#e8f0e4"/><stop offset="1" stop-color="#e8f0e4" stop-opacity=".5"/>
+  </linearGradient></defs>
+  <rect width="160" height="160" rx="14" fill="url(#g4)"/>
+  <path d="M50 78 h26 l6 10 h28 v46 h-60z" fill="#90b080" opacity=".92"/><path d="M56 70 h26 l6 10 h28 v46 h-60z" fill="#90b080" opacity=".62"/>
+  <text x="80" y="147" text-anchor="middle" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif"
+        font-size="9.5" font-weight="700" fill="#2b2620" opacity=".85">OFFICELINE</text>
+</svg>

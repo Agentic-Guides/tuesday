@@ -1,0 +1,19 @@
+{
+  "name": "tuesday",
+  "version": "1.0.0",
+  "description": "Tuesday — Anna's skincare brand bills $42/month to 12,000 subscribers. When a renewal fails at 3 AM, three AI agents debate retry/downgrade/release and a real PayPal subscription is updated on their consensus. The proof is stamped into the payment record.",
+  "type": "module",
+  "main": "src/webmcp.js",
+  "scripts": {
+    "start": "node demo/server.mjs",
+    "test": "node tests/moneyGate.test.js && node test_triad.mjs",
+    "test:gate": "node tests/moneyGate.test.js",
+    "test:smoke": "bash tests/smoke.sh",
+    "test:live": "node tests/paypalSandbox.live.mjs",
+    "test:channel3": "node tests/channel3.live.mjs",
+    "demo": "node demo/server.mjs"
+  },
+  "keywords": ["paypal", "webmcp", "agentic-commerce", "multi-agent", "ai"],
+  "license": "MIT",
+  "engines": { "node": ">=18" }
+}

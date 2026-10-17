@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Laptop Stand">
+  <defs><linearGradient id="g5" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#e8e8ec"/><stop offset="1" stop-color="#e8e8ec" stop-opacity=".5"/>
+  </linearGradient></defs>
+  <rect width="160" height="160" rx="14" fill="url(#g5)"/>
+  <path d="M46 84 l34 -18 l34 18 l-34 18z" fill="#a8a8b4" opacity=".92"/><path d="M46 84 v16 l34 18 v-16z" fill="#a8a8b4" opacity=".65"/><path d="M114 84 v16 l-34 18 v-16z" fill="#a8a8b4" opacity=".45"/>
+  <text x="80" y="147" text-anchor="middle" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif"
+        font-size="9.5" font-weight="700" fill="#2b2620" opacity=".85">VOLTEK</text>
+</svg>
