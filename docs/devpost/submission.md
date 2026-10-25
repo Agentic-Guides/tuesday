@@ -161,9 +161,35 @@ deterministic argument — which is always cited — and the response records th
   so the product matches the platform instead of fighting it.
 - **It does not act on a deadline.** Six hours to respond is exactly when a system should
   slow down, not speed up.
-- **It does not hide the sample set.** This sandbox merchant has no open disputes, so the
-  API returns four labelled samples and says why. Every row carries `source: sample` and
-  the page states it above the list.
+- **It does not hide the sample set.** When PayPal returns no open disputes, the API returns
+  four labelled samples and says why. Every row carries `source: sample` and the page states
+  it above the list. The samples exist so the workflow can be exercised — they are not a
+  substitute for the real case below.
+
+### A real dispute, end to end
+
+The desk was not built against samples. A real dispute was raised in the PayPal sandbox and
+read back through the Disputes API, on a real captured payment:
+
+| | |
+|---|---|
+| **The purchase** | Order `0CG03937Y3942245L`, approved in a browser as the buyer, captured as `76L93143X4082031L`, $42.00 USD, stamped `custom_id` `triad1:disputetest0003` |
+| **The dispute** | `PP-R-IAL-10194452` — `MERCHANDISE_OR_SERVICE_NOT_RECEIVED`, `OPEN` / `UNDER_PAYPAL_REVIEW`, buyer wrote *"The parcel never arrived. I contacted the seller twice with no reply."* |
+| **The read** | `GET /v1/customer/disputes/PP-R-IAL-10194452` returns the transaction, both parties, the buyer's message in `evidences[]`, and the refundable amount |
+| **What Tuesday decided** | the arbiter proposed `REFUND`; the gate refused it and returned `ESCALATE` |
+
+The refusal is the part worth looking at. `gpt-oss:120b` read the dispute and recommended a
+refund, citing `E4` (tracking) and `E5` (delivery confirmation) — evidence this merchant does
+not have for this order. `D3` caught the citation, `D1` reported the missing tracking and
+delivery, and the verdict became `ESCALATE`: a human and PayPal decide, and no money moves.
+
+That is the whole claim, measured rather than described — a live model argued for a payment,
+and the gate that never consulted the model refused it.
+
+**What is still not real, and why.** The merchant account cannot file disputes: PayPal
+permits filing only from the buyer side, with scopes this app does not hold. The dispute above
+was filed by the sandbox buyer through the Resolution Center — exactly how a real buyer files
+one. Tuesday reads and answers disputes; it never files them.
 
 Measured on the hosted demo against the sample set, with three live models adjudicating:
 

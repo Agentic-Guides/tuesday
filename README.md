@@ -448,14 +448,15 @@ not hand-written expectations:
 
 ## PayPal Developer Platform usage (depth)
 
-This is not a checkout button. PayPal is the settlement layer the whole model depends on. **Three
-surfaces are wired up in this demo**, and two more are named because they are where this design goes
+This is not a checkout button. PayPal is the settlement layer the whole model depends on. **Four
+surfaces are wired up in this demo**, and one more is named because it is where this design goes
 in production:
 
 | Surface | Status | How it is used |
 |---|---|---|
 | **Orders v2 REST** (`paypal/client.js`) | **Implemented** | The settlement path this demo actually runs: `POST /v1/oauth2/token` → `POST /v2/checkout/orders` with the decision hash in `purchase_units[0].custom_id` → `POST .../capture`, and `GET .../orders/{id}` to read the stamp back. The `GET` is what `triadVerifyReceipt` calls, so the audit check compares against PayPal's own record, not a copy held in memory. |
 | **Money gate** (`src/webmcp.js`) | **Implemented** | `triadCreateOrder()` refuses to call PayPal at all when the decision is DENIED or DISSENT — it returns `not_approved` before any network call. Asserted by `tests/moneyGate.test.js`. |
+| **Disputes v1** (`paypal/client.js`) | **Implemented and exercised on a real dispute** | `GET /v1/customer/disputes`, `GET /v1/customer/disputes/{id}`, `POST .../accept-claim`, `POST .../make-offer`, `POST .../provide-evidence`, `POST .../escalate`. Read against a dispute raised in the sandbox (`PP-R-IAL-10194452`, see *A real dispute, end to end*). `provide-evidence` takes **multipart/form-data**, not JSON, and rejects an empty `tracking_info` array — both measured, both handled. Tuesday never files a dispute: PayPal permits that only from the buyer side. |
 | **WebMCP** (`navigator.modelContext`) | **Implemented** | Registered in `src/commerce.js` / `src/webmcp.js`, so an agent browser can drive the flow as page tools. |
 | Subscriptions v1 | Not implemented | The product story is a *failed renewal*, but the settlement here is an Orders v2 one-off. We tried the subscription path: in the sandbox an `APPROVAL_PENDING` subscription cannot be activated by an API call (`POST /activate` → 422), which is PayPal's design — the buyer must approve. Wiring the recurring plan itself is the next step, not something this demo claims to have done. |
 | PayPal Agent Toolkit (`@paypal/mcp`) | Not implemented | The integration point this design would move to in production. The demo settles through Orders v2 REST directly so a judge can run it with nothing but sandbox credentials. |
@@ -592,17 +593,50 @@ and which were the rule engine's.
   so the product matches the platform rather than fighting it.
 - **It does not act on a deadline.** A dispute due in six hours is exactly when a system
   should slow down, not speed up.
-- **It does not hide the sample set.** This sandbox merchant has no open disputes, so
-  `/api/disputes` returns four labelled samples and says why. Every row carries
-  `source: sample`, and the page states it above the list.
+- **It does not hide the sample set.** When PayPal returns no open disputes, `/api/disputes`
+  returns the labelled samples and says why. Every row carries `source: sample` and the
+  page states it above the list. The samples exist so the workflow can be exercised; they
+  are not a substitute for the real case below.
+
+### A real dispute, end to end
+
+The desk was not built against samples alone. A real dispute was raised in the PayPal
+sandbox and read back through the Disputes API, on a real captured payment:
+
+| | |
+|---|---|
+| **The purchase** | Order `0CG03937Y3942245L`, approved in the browser as the buyer, captured as `76L93143X4082031L`, $42.00 USD, `custom_id` `triad1:disputetest0003` |
+| **The dispute** | `PP-R-IAL-10194452` — `MERCHANDISE_OR_SERVICE_NOT_RECEIVED`, `OPEN` / `UNDER_PAYPAL_REVIEW`, buyer *"The parcel never arrived. I contacted the seller twice with no reply."* |
+| **The read** | `GET /v1/customer/disputes/PP-R-IAL-10194452` returns the transaction, both parties, the buyer's message in `evidences[]`, and the refundable amount |
+| **What Tuesday decided** | the LLM arbiter proposed `REFUND`; the gate refused it and returned `ESCALATE` |
+
+The refusal is the part worth looking at. `gpt-oss:120b` read the dispute and recommended a
+refund, citing `E4` (tracking) and `E5` (delivery confirmation) — evidence the merchant does
+not have for this order. `D3` caught the citation, `D1` reported the missing tracking and
+delivery, and the verdict became `ESCALATE`: a human and PayPal decide, and no money moves.
+
+That is the whole claim, measured rather than described — a live model argued for a payment,
+and the gate that did not consult the model refused it.
+
+**What is still not real, and why.** This merchant's account cannot create disputes: PayPal
+permits filing only from the buyer side, with buyer scopes the app does not hold. The dispute
+above was filed by the sandbox buyer through the Resolution Center, which is exactly how a
+real buyer files one. Tuesday reads and answers disputes; it never files them.
 
 ### Watching it work
 
 ```
 GET  /api/disputes        PayPal's list, or the labelled sample set with the reason
 POST /api/dispute/review  run the three agents and the gate over one dispute
-POST /api/dispute/act     carry out a gated ACCEPT / REFUND / OFFER_PARTIAL
+POST /api/dispute/act     carry out a gated CONTEST / ACCEPT / REFUND / OFFER_PARTIAL / ESCALATE
 ```
+
+`/api/dispute/act` re-runs the gate server-side before calling PayPal, so a client cannot
+POST an action the gate would have refused. `CONTEST` assembles the evidence and submits it
+with `provide-evidence`, sending the advocate's reasoning and its citations as the notes —
+so what PayPal receives is the argument the gate approved. Getting that call right took
+three measured attempts: this endpoint takes **multipart/form-data**, not JSON, and PayPal
+rejects an empty `tracking_info` array outright.
 
 Open the **Dispute Desk** tab and press *Review this dispute*. Measured on the sample
 set: `CONTEST` for a $42 non-receipt with tracking, delivery and an address match;
