@@ -61,7 +61,7 @@ The card shows both hashes so you can see exactly what was compared.
 
 [Demonstration video](https://youtu.be/49eujv0VV0Y) — 2:50, 1080p. Narrated, and
 every verdict in it is the demo running: APPROVED, DENIED, and the money-gate suite returning
-31 passed / 0 failed on screen.
+44 passed / 0 failed on screen.
 Six screenshots are in `devpost-media/`, with the captions they carry in `devpost-media/captions.json`.
 
 ### What the agents argue about — the real catalogue
@@ -135,7 +135,7 @@ Tuesday governs money in two places: **before it moves** (an agent wants to spen
 | **Before the money moves** | Three agents audit each purchase against **named gates** (`G1`–`G5`). A PayPal order is raised only if the gates pass — and the tests assert PayPal is never called when they do not. |
 | **After the money has moved** | A buyer disputes a settled payment. The **same tribunal** reads a numbered evidence set (`E1`–`E9`), argues both sides, and the gate (`D1`–`D6`) decides what may be answered. |
 | **The novel part** | The decision **and the dissent** are hashed into the order's `custom_id` at settlement, so the receipt that authorised a payment is also evidence `E3` when that payment is later disputed. |
-| **The proof** | A real Orders v2 sandbox round-trip; `GET` reads the stamp back. 97 tests total — of which the money-gate and dispute-desk suites assert that a refused decision never reaches PayPal. |
+| **The proof** | A real Orders v2 sandbox round-trip; `GET` reads the stamp back. 109 tests total — of which the money-gate and dispute-desk suites assert that a refused decision never reaches PayPal. |
 | **What is live right now** | PayPal **SANDBOX**, three live models, Channel3 catalog, on `tuesday-paypal.onrender.com`. Without keys it runs MOCK, and the page says which mode it is in. |
 
 ## Who this is for

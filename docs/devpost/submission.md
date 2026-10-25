@@ -14,9 +14,9 @@ record itself.
 
 ## Inspiration
 
-Anna's skincare brand runs **12,000 subscribers** on a **$200/month purchasing budget**.
-On a Tuesday at 3 AM the restock agent decides the Vitamin C serum is running low and wants
-to spend $42. Nobody is awake to approve it.
+A skincare brand gives its restock agent a **$200/month purchasing budget**. On a Tuesday
+at 3 AM the agent decides the Vitamin C serum is running low and wants to spend $42. Nobody
+is awake to approve it.
 
 Give an agent a budget and it will eventually spend all of it. **The hard part is not letting
 it pay — it is giving it a defensible reason to stop.** The failure mode that costs real
@@ -49,7 +49,7 @@ The demo opens on the question: **TUESDAY, 3 PM — CAN THE AGENT SPEND $42?**
    `GET` to prove it survived the round trip.
 6. **You can watch the claim get proven.** The demo has a **Run the money-gate test suite**
    button. Press it and `tests/moneyGate.test.js` runs on the machine, with its raw output
-   printed into the page — 31 passed, 0 failed, including
+   printed into the page — 44 passed, 0 failed, including
    `denied → createOrder NOT called`. A DENIED verdict never reaches PayPal at all.
 
 ## How we built it
@@ -272,9 +272,12 @@ Bigger charge, stricter verdict. Bigger budget, looser verdict. Every cell moves
 
 We would rather a judge trust us than be surprised.
 
-- **Real:** the PayPal Orders v2 REST path, the hash round-trip in `custom_id`, the money
-  gate (asserted by 31 passing tests), the three-model debate, the gates, the ledger, the
-  product catalogue flow.
+- **Real:** the PayPal Orders v2 REST path against the sandbox, the hash round-trip in
+  `custom_id`, the money gate, the dispute desk, the three-model debate, the ledger and the
+  product catalogue flow. 109 tests cover it (`npm test`): 44 for the purchase gate, 65 for
+  the dispute gate, plus the end-to-end flow. The refusal paths are asserted directly — a
+  DENIED verdict calls `createOrder` zero times, a weak-evidence contest is refused, and a
+  refund without a human is refused at any amount.
 - **Product images:** real photographs, 24 of them, generated for this project with FLUX
   (Cloudflare Workers AI) and served by the demo itself — they appear in the candidate grid
   and on the recommendation card. The labels are deliberately blank, because the decision is
@@ -308,7 +311,7 @@ We would rather a judge trust us than be surprised.
 | 4 | `04_debate.png` | A $42 purchase against a $60 budget comes back CONDITIONAL: one for, one against, one judging — and the Witness attaches a condition. The agents only ever propose. |
 | 5 | `05_timeline.png` | One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral. Open disputes stay flagged. |
 | 6 | `06_ledger.png` | Every decision, every vote, every receipt in one AG Grid dashboard. Each row carries the hash stamped into the PayPal order's `custom_id`. |
-| 7 | `07_proof.png` | Three claims, three tests, all runnable in the page: the money-gate suite (31 passed, 0 failed), the 4x4 verdict grid computed live, and a receipt re-hashed against the hash stored in the PayPal order's `custom_id`. |
+| 7 | `07_proof.png` | Three claims, three tests, all runnable in the page: the money-gate suite (44 passed, 0 failed), the 4x4 verdict grid computed live, and a receipt re-hashed against the hash stored in the PayPal order's `custom_id`. |
 | 8 | `08_grid.png` | The 4×4 verdict grid from the README, reproduced live: sixteen real adjudications, computed when the button is pressed. Charge down the side, budget across the top. |
 
 ## Try it out
