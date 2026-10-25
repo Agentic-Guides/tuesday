@@ -154,6 +154,25 @@ that shape and re-runs the arbiter deterministically.
 deterministic argument — which is always cited — and the response records the fallback in
 `deterministicFallback`, so a reader can see which arguments were a model's.
 
+### What the hosted demo will not let you do
+
+The public instance shows one real dispute, and a stranger must not be able to close it. If a
+visitor could POST `accept-claim` against `PP-R-XBB-10194468`, the centrepiece of the demo would
+be gone for every judge who arrived afterwards. So:
+
+- **A write against a real PayPal dispute is a dry run.** The response returns the exact request
+  it would have sent — method, path, body — which is more useful to a reader than a silent
+  success. Set `ALLOW_LIVE_DISPUTE_WRITES=1` on a deployment you control to turn it on.
+- **A write against a labelled sample is refused outright.** There is no PayPal dispute behind
+  it, so there is nothing to act on.
+- **Every endpoint is rate limited per IP**: 12 requests a minute for anything that spends an
+  LLM call or a PayPal call, 120 a minute for reads. Measured: the 11th expensive call in a
+  minute returns `429` with `Retry-After`. Without a ceiling one visitor can drain the keys and
+  take the demo down for whoever comes next.
+
+Reads stay live. The real dispute, the real list and the real verification are all reachable —
+only the actions that would change the merchant's account are held back.
+
 ### What the desk will not do
 
 - **It does not create disputes.** PayPal permits that only in the sandbox, with
