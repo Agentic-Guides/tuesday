@@ -135,7 +135,7 @@ Tuesday governs money in two places: **before it moves** (an agent wants to spen
 | **Before the money moves** | Three agents audit each purchase against **named gates** (`G1`–`G5`). A PayPal order is raised only if the gates pass — and the tests assert PayPal is never called when they do not. |
 | **After the money has moved** | A buyer disputes a settled payment. The **same tribunal** reads a numbered evidence set (`E1`–`E9`), argues both sides, and the gate (`D1`–`D6`) decides what may be answered. |
 | **The novel part** | The decision **and the dissent** are hashed into the order's `custom_id` at settlement, so the receipt that authorised a payment is also evidence `E3` when that payment is later disputed. |
-| **The proof** | A real Orders v2 sandbox round-trip; `GET` reads the stamp back; 84 tests assert that a refused decision never reaches PayPal. |
+| **The proof** | A real Orders v2 sandbox round-trip; `GET` reads the stamp back. 97 tests total — of which the money-gate and dispute-desk suites assert that a refused decision never reaches PayPal. |
 | **What is live right now** | PayPal **SANDBOX**, three live models, Channel3 catalog, on `tuesday-paypal.onrender.com`. Without keys it runs MOCK, and the page says which mode it is in. |
 
 ## Who this is for
@@ -470,15 +470,18 @@ not hand-written expectations:
 
 ## PayPal Developer Platform usage (depth)
 
-This is not a checkout button. PayPal is the settlement layer the whole model depends on. **Four
-surfaces are wired up in this demo**, and one more is named because it is where this design goes
-in production:
+This is not a checkout button. PayPal is the settlement layer the whole model depends on.
+
+**PayPal APIs used: Orders v2 and Disputes v1, both against the sandbox.** Everything else in the
+table below is Tuesday's own code or a protocol, listed separately so the count is not padded —
+a money gate and a tool protocol are not PayPal APIs, and calling them that would inflate the
+depth rather than show it.
 
 | Surface | Status | How it is used |
 |---|---|---|
 | **Orders v2 REST** (`paypal/client.js`) | **Implemented** | The settlement path this demo actually runs: `POST /v1/oauth2/token` → `POST /v2/checkout/orders` with the decision hash in `purchase_units[0].custom_id` → `POST .../capture`, and `GET .../orders/{id}` to read the stamp back. The `GET` is what `triadVerifyReceipt` calls, so the audit check compares against PayPal's own record, not a copy held in memory. |
 | **Money gate** (`src/webmcp.js`) | **Implemented** | `triadCreateOrder()` refuses to call PayPal at all when the decision is DENIED or DISSENT — it returns `not_approved` before any network call. Asserted by `tests/moneyGate.test.js`. |
-| **Disputes v1** (`paypal/client.js`) | **Implemented and exercised on a real dispute** | `GET /v1/customer/disputes`, `GET /v1/customer/disputes/{id}`, `POST .../accept-claim`, `POST .../make-offer`, `POST .../provide-evidence`, `POST .../escalate`. Read against a dispute raised in the sandbox (`PP-R-IAL-10194452`, see *A real dispute, end to end*). `provide-evidence` takes **multipart/form-data**, not JSON, and rejects an empty `tracking_info` array — both measured, both handled. Tuesday never files a dispute: PayPal permits that only from the buyer side. |
+| **Disputes v1** (`paypal/client.js`) | **Implemented; two endpoints exercised live** | Endpoint by endpoint, so nobody has to guess which parts were run: <br>`GET /v1/customer/disputes` — **run** (returns the merchant's list) <br>`GET /v1/customer/disputes/{id}` — **run** against two real disputes (`PP-R-IAL-10194452`, `PP-R-XBB-10194468`) <br>`POST .../provide-evidence` — **run**; the sandbox returned 404 for a sample id and 400 for a malformed body before the shape was right. It takes **multipart/form-data**, not JSON, and rejects an empty `tracking_info` array. <br>`POST .../accept-claim`, `POST .../make-offer`, `POST .../escalate` — **implemented but not exercised against a real dispute.** The hosted demo runs them as dry runs on purpose (see below). Tuesday never files a dispute: PayPal permits that only from the buyer side. |
 | **WebMCP** (`navigator.modelContext`) | **Implemented** | Registered in `src/commerce.js` / `src/webmcp.js`, so an agent browser can drive the flow as page tools. |
 | Subscriptions v1 | Not implemented | Tuesday settles one-off purchases and disputes; it does not bill recurring plans. The settlement here is an Orders v2 one-off. We tried the subscription path: in the sandbox an `APPROVAL_PENDING` subscription cannot be activated by an API call (`POST /activate` → 422), which is PayPal's design — the buyer must approve. Wiring the recurring plan itself is the next step, not something this demo claims to have done. |
 | PayPal Agent Toolkit (`@paypal/mcp`) | Not implemented | The integration point this design would move to in production. The demo settles through Orders v2 REST directly so a judge can run it with nothing but sandbox credentials. |
@@ -576,7 +579,7 @@ does not exist — that is "the AI cannot lie" as a mechanism rather than a prom
 
 ### The dispute gate
 
-Five rules, each proven in `tests/disputeDesk.test.js`:
+Six rules, each proven in `tests/disputeDesk.test.js`:
 
 | Rule | What it stops |
 |---|---|
@@ -620,30 +623,51 @@ and which were the rule engine's.
   page states it above the list. The samples exist so the workflow can be exercised; they
   are not a substitute for the real case below.
 
-### A real dispute, end to end
+### A real chain, end to end
 
-The desk was not built against samples alone. A real dispute was raised in the PayPal
-sandbox and read back through the Disputes API, on a real captured payment:
+This is the claim the project exists to make, so it was run for real rather than argued.
+Every identifier below was read back from the PayPal sandbox API:
 
-| | |
-|---|---|
-| **The purchase** | Order `0CG03937Y3942245L`, approved in the browser as the buyer, captured as `76L93143X4082031L`, $42.00 USD, `custom_id` `triad1:disputetest0003` |
-| **The dispute** | `PP-R-IAL-10194452` — `MERCHANDISE_OR_SERVICE_NOT_RECEIVED`, `OPEN` / `UNDER_PAYPAL_REVIEW`, buyer *"The parcel never arrived. I contacted the seller twice with no reply."* |
-| **The read** | `GET /v1/customer/disputes/PP-R-IAL-10194452` returns the transaction, both parties, the buyer's message in `evidences[]`, and the refundable amount |
-| **What Tuesday decided** | the LLM arbiter proposed `REFUND`; the gate refused it and returned `ESCALATE` |
+| Step | What happened | The identifier |
+|---|---|---|
+| **1. Tribunal** | Three live models (`deepseek-v4.1-flash`, `gemma4:31b`, `gpt-oss:120b`) audited a $42 purchase against a $500 budget | `APPROVED`, receipt hash `728f5a73d918240d` |
+| **2. The receipt is stamped** | The order was created with the decision hash in `custom_id` | order `21C06348JB061803G`, `triad1:728f5a73d918240d` |
+| **3. A human approves** | The buyer completed the payment in PayPal — the app cannot capture without it | payer `WDCS…FVQ` |
+| **4. Capture** | The money moved | capture `1N665776542931902`, `COMPLETED`, $42.00 |
+| **5. Weeks later, the buyer disputes it** | Filed through the Resolution Center, as a real buyer would | dispute `PP-R-XBB-10194468`, `MERCHANDISE_OR_SERVICE_NOT_RECEIVED`, `OPEN` |
+| **6. The desk reads it back** | `GET /v1/customer/disputes/{id}` returned the transaction, the buyer's message and the stamp | `custom = triad1:728f5a73d918240d` |
+| **7. Evidence E3 verifies** | The stamp in the payment record was compared with the ledger entry | **`ok: true` — "The decision hash triad1:728f5a73d918240d matches the ledger entry (728f5a73d918240d)."** |
 
-The refusal is the part worth looking at. `gpt-oss:120b` read the dispute and recommended a
-refund, citing `E4` (tracking) and `E5` (delivery confirmation) — evidence the merchant does
-not have for this order. `D3` caught the citation, `D1` reported the missing tracking and
-delivery, and the verdict became `ESCALATE`: a human and PayPal decide, and no money moves.
+**That is the loop closing.** The hash stamped when three models approved a payment was, weeks
+later, read back out of PayPal's own dispute record and matched against the decision the desk
+still holds. The receipt that authorised the payment carries a verifiable record of why it was
+allowed — and that record is available exactly when somebody asks whether it should have been.
 
-That is the whole claim, measured rather than described — a live model argued for a payment,
-and the gate that did not consult the model refused it.
+The verdict on that dispute came from a live model (`gpt-oss:120b`), which proposed `REFUND`
+because it could find no shipment tracking or delivery confirmation (`E4`, `E5`). The gate let
+the proposal stand but forced a human: `D1_missing_E4_E5_requires_human`, and `D6` because a
+refund spends money. Nothing moved automatically.
 
-**What is still not real, and why.** This merchant's account cannot create disputes: PayPal
-permits filing only from the buyer side, with buyer scopes the app does not hold. The dispute
-above was filed by the sandbox buyer through the Resolution Center, which is exactly how a
-real buyer files one. Tuesday reads and answers disputes; it never files them.
+`docs/fixtures/real-chain-PP-R-XBB-10194468.json` holds the whole chain — tribunal, order,
+capture, dispute, the PayPal response with identities masked, and the E3 verification — so the
+demo can be reproduced after the sandbox case is closed.
+
+**What is still not real, and why.** The merchant account cannot file disputes: PayPal permits
+filing only from the buyer side, with scopes this app does not hold. Both disputes above were
+filed by sandbox buyers through the Resolution Center — exactly how a real buyer files one.
+Tuesday reads and answers disputes; it never files them.
+
+### What the hosted demo will not let you do
+
+The public instance shows one real dispute, and a stranger must not be able to close it. So:
+
+- **A write against a real PayPal dispute is a dry run** unless the deployment sets
+  `ALLOW_LIVE_DISPUTE_WRITES=1` (the hosted demo does not). The response returns the exact
+  request it would have sent, which is more useful than a silent success.
+- **A write against a labelled sample is refused** — there is no PayPal dispute behind it.
+- **Every endpoint is rate limited per IP**: 12 requests/minute for anything that spends an LLM
+  call or a PayPal call, 120/minute for reads. Without a ceiling one visitor can drain the keys
+  and take the demo down for the judge who arrives next.
 
 ### Watching it work
 

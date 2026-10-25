@@ -1,0 +1,141 @@
+{
+  "_what": "A real end-to-end chain: tribunal -> stamped order -> buyer capture -> buyer dispute -> E3 verify.",
+  "_source": "PayPal sandbox, 2026-10-25. GET /v1/customer/disputes/PP-R-XBB-10194468",
+  "chain": {
+    "tribunal": {
+      "decision": "APPROVED",
+      "engine": "llm",
+      "models": {
+        "advocate": "deepseek-v4.1-flash",
+        "auditor": "gemma4:31b",
+        "witness": "gpt-oss:120b"
+      },
+      "receipt_hash": "728f5a73d918240d",
+      "receipt_custom_id": "triad1:728f5a73d918240d"
+    },
+    "order": {
+      "order_id": "21C06348JB061803G",
+      "custom_id": "triad1:728f5a73d918240d"
+    },
+    "capture": {
+      "capture_id": "1N665776542931902",
+      "amount": "42.00",
+      "currency": "USD",
+      "status": "COMPLETED"
+    },
+    "buyer": {
+      "paypal_payer_id": "WDCS...FVQ",
+      "email": "sb-owhy...@example.com"
+    },
+    "dispute": {
+      "dispute_id": "PP-R-XBB-10194468",
+      "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+      "status": "OPEN",
+      "dispute_state": "UNDER_PAYPAL_REVIEW"
+    },
+    "e3_verification": {
+      "ok": true,
+      "verified": true,
+      "detail": "The decision hash triad1:728f5a73d918240d matches the ledger entry (728f5a73d918240d)."
+    },
+    "gate_verdict": {
+      "proposed": "REFUND",
+      "action": "REFUND",
+      "requiresHuman": true,
+      "autoExecute": false,
+      "spendsMoney": true,
+      "model": "gpt-oss:120b",
+      "cites": [
+        "E1",
+        "E9"
+      ],
+      "gate_passed": [
+        "D1_missing_E4_E5_requires_human",
+        "D2_within_auto_limit_USD_42usd",
+        "D3_all_claims_cited",
+        "D4_deadline_ok",
+        "D5_no_unforced_surrender"
+      ],
+      "gate_failed": []
+    }
+  },
+  "paypal_response": {
+    "dispute_id": "PP-R-XBB-10194468",
+    "create_time": "2026-10-25T05:05:56.831Z",
+    "update_time": "2026-10-25T05:06:32.208Z",
+    "disputed_transactions": [
+      {
+        "buyer_transaction_id": "04B84098HB973821K",
+        "seller_transaction_id": "1N665776542931902",
+        "create_time": "2026-10-25T05:01:53.000Z",
+        "transaction_status": "COMPLETED",
+        "gross_amount": {
+          "currency_code": "USD",
+          "value": "42.00"
+        },
+        "custom": "triad1:728f5a73d918240d",
+        "buyer": {
+          "email": "sb-owh...@example.com",
+          "payer_id": "WDCS...YFVQ",
+          "name": "John Doe"
+        },
+        "seller": {
+          "email": "sb-htj...@example.com",
+          "merchant_id": "MAKU...H6AS",
+          "name": "Test Store"
+        },
+        "items": [
+          {
+            "item_name": "skincare: restock",
+            "item_description": "skincare: restock",
+            "item_quantity": "1",
+            "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+            "item_type": "PRODUCT"
+          }
+        ],
+        "seller_protection_eligible": false
+      }
+    ],
+    "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+    "status": "OPEN",
+    "dispute_amount": {
+      "currency_code": "USD",
+      "value": "42.00"
+    },
+    "dispute_state": "UNDER_PAYPAL_REVIEW",
+    "dispute_life_cycle_stage": "CHARGEBACK",
+    "dispute_channel": "INTERNAL",
+    "extensions": {
+      "merchant_contacted": true,
+      "buyer_contacted_time": "2026-10-25T05:05:56.146Z"
+    },
+    "evidences": [
+      {
+        "evidence_type": "CREATE",
+        "notes": "The parcel never arrived. I contacted the seller twice and got no reply. Please refund 42.00 USD.",
+        "source": "SUBMITTED_BY_BUYER",
+        "date": "2026-10-25T05:05:56.831Z",
+        "dispute_life_cycle_stage": "CHARGEBACK"
+      }
+    ],
+    "offer": {
+      "buyer_requested_amount": {
+        "currency_code": "USD",
+        "value": "42.00"
+      }
+    },
+    "refund_details": {
+      "allowed_refund_amount": {
+        "currency_code": "USD",
+        "value": "42.00"
+      }
+    },
+    "links": [
+      {
+        "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-XBB-10194468",
+        "rel": "self",
+        "method": "GET"
+      }
+    ]
+  }
+}

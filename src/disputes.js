@@ -208,7 +208,11 @@ export function collectEvidence(dispute, order = null) {
 
 function requiredEvidenceFor(reason) {
   if (reason === DISPUTE_REASON.NOT_RECEIVED) return ['E4', 'E5'];      // tracking + delivery
-  if (reason === DISPUTE_REASON.NOT_AS_DESCRIBED) return ['E1', 'E3'];  // order + what was decided
+  // NOT_AS_DESCRIBED used to require E3 (the decision hash). That was wrong: the hash proves
+  // a decision was made and recorded, not that what arrived matched what was described. Making
+  // it compulsory implied the stamp was evidence about the goods. It stays available as
+  // corroboration — an argument may cite it — but sufficiency is judged on the order itself.
+  if (reason === DISPUTE_REASON.NOT_AS_DESCRIBED) return ['E1'];  // the order is what was described
 
   // An "I did not authorise this" claim is about the buyer's identity, and the order and
   // capture say nothing about it: a dispute only exists against a settled transaction, so
