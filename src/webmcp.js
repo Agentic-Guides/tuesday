@@ -73,10 +73,11 @@ function seedLedger(ledger) {
   ];
   for (const [amount, category, minutesAgo] of week) {
     const purchase = { id: 'seed-' + minutesAgo, amount, category, reason: 'seeded history' };
-    // ★予算 $110: 実測で確定した値。$60 では 3件目で予算が尽きて
-  //   4件目以降が全部 DENIED になり、$42 の renewal が DISSENT に落ちていた
-  //   （2026-10-24 実測）。$110 で README の物語
-  //   （APPROVED / APPROVED / CONDITIONAL / CONDITIONAL / DENIED / CONDITIONAL）と一致する。
+    // Budget $110: a measured value, not a chosen one. At $60 the running total
+    // ran out by the third row, everything after it came back DENIED, and the $42
+    // purchase fell to DISSENT. At $110 the seeded week reproduces the verdicts the
+    // README describes: APPROVED / APPROVED / CONDITIONAL / CONDITIONAL / DENIED /
+    // CONDITIONAL.
   const constraints = { monthlyBudget: 110, spentThisMonth: spentRunning, recentPurchases: [] };
     // Order matters: the Witness reads the other two verdicts, so build the
     // Advocate and the Auditor first and hand their actual arguments over. With
@@ -109,9 +110,9 @@ function seedLedger(ledger) {
       threshold: 2,
       dissentMap: result.dissentMap || null,
       receiptIntact: verifyReceipt(receipt),
-      // ★amount / category を直接持たせる。purchase の中にしか無いと
-      //   /api/ledger の生データで amount: null に見え、審査員が
-      //   「金額の無い台帳」と誤解する（2026-10-24 実測）。
+      // Carry amount and category at the top level. When they lived only inside
+      // `purchase`, /api/ledger showed amount: null and the ledger read as a table
+      // of decisions with no money in it.
       amount: result.purchase.amount,
       category: result.purchase.category,
       seeded: true,
@@ -256,17 +257,17 @@ export function createTriad({ runner, paypal } = {}) {
   }
 
   /**
-   * 改ざん検知 — order の custom_id に刻んだ指紋が、ledger の receipt と一致するか。
-   * PayPal から order を引き直し、custom_id を照合して監査証跡を検証する。
+   * Tamper detection: does the fingerprint stamped into the order's custom_id still
+   * match the receipt in the ledger? Re-fetches the order and compares.
    */
   /**
-   * 領収書を検証する。
+   * Verify a receipt.
    *
-   * ★2026-10-24 修正: 以前はメモリ上の order オブジェクトを参照していたため
-   *   「PayPal に問い合わせて確認」になっていなかった。サーバー再起動後は
-   *   pendingOrders が消えて検証不能だった。現在は PayPal API から
-   *   custom_id を読み直し（getOrder）、その値と台帳の receipt を突き合わせる。
-   *   読み直せない場合は live:false を返し、メモリ値で代用したことを明示する。
+   * Fixed 2026-10-24: this used to read a copy of the order held in memory, so it was
+   * never actually "checked with PayPal" — and after a restart pendingOrders was gone
+   * and verification was impossible. It now re-reads custom_id from the PayPal API
+   * (getOrder) and compares that against the ledger's receipt. When the re-read is not
+   * possible it returns live:false, so the caller can say the value came from memory.
    */
   async function triadVerifyReceipt({ orderId, purchaseId } = {}) {
     let entry = purchaseId ? pendingOrders.get(purchaseId) : null;
@@ -278,7 +279,7 @@ export function createTriad({ runner, paypal } = {}) {
 
     const orderIdToUse = orderId || entry.order?.id || null;
 
-    // ★PayPal から custom_id を読み直す（third-party の記録との突き合わせ）
+    // Re-read custom_id from PayPal: compare against the third party's own record.
     let liveCustomId = null;
     let live = false;
     let liveError = null;
@@ -292,11 +293,12 @@ export function createTriad({ runner, paypal } = {}) {
       }
     }
 
-    // メモリ上の値（PayPal に問い合わせられない場合の代用）
+    // Fallback: the value this session is holding, when PayPal cannot be reached.
     const memoryCustomId = entry.order?.purchase_units?.[0]?.custom_id ?? receipt.customId;
     const customId = liveCustomId ?? memoryCustomId;
 
-    // ★custom_id が無い場合は receipt 自身の値と比較しない（無意味な自己一致になる）
+    // Never compare against the receipt's own field when custom_id is absent — that
+    // would be a self-match and would prove nothing.
     const onChain = hashFromCustomId(customId);
     const intact = verifyReceipt(receipt);
     const hashMatches = onChain !== null && onChain === receipt.hash;
@@ -309,7 +311,7 @@ export function createTriad({ runner, paypal } = {}) {
       ledgerHash: receipt.hash,
       hashMatches,
       receiptIntact: intact,
-      // ★PayPal に実際に問い合わせたか。false のときはメモリ値での検証。
+      // Whether PayPal was actually queried. false = verified against memory.
       live,
       source: live ? 'paypal_api' : 'memory',
       liveError,

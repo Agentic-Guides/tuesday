@@ -27,11 +27,35 @@ export class PayPalClient {
   static fromEnv() {
     const id = process.env.PAYPAL_CLIENT_ID;
     const secret = process.env.PAYPAL_CLIENT_SECRET;
+    const hasId = Boolean(id && String(id).trim());
+    const hasSecret = Boolean(secret && String(secret).trim());
+
+    // ★ Half-configured is a mistake, not a mode. Falling back to MOCK when only one
+    //   of the two variables is set means a typo'd .env silently demos a fake PayPal
+    //   while the operator believes they are testing the sandbox. Be loud instead.
+    if (hasId !== hasSecret) {
+      const missing = hasId ? 'PAYPAL_CLIENT_SECRET' : 'PAYPAL_CLIENT_ID';
+      throw new Error(
+        `PayPal is half-configured: ${missing} is missing but its partner is set. ` +
+        'Set both to use the sandbox, or neither to run in MOCK. Refusing to guess.'
+      );
+    }
     return new PayPalClient(id, secret);
   }
 
   get mode() {
     return this.mock ? 'MOCK' : 'SANDBOX';
+  }
+
+  /**
+   * ★ A human-readable one-liner for the UI. The mode flag alone ("MOCK") reads as
+   *   "this is fake"; what a judge needs to know is which of the two claims is being
+   *   demonstrated right now.
+   */
+  get modeDescription() {
+    return this.mock
+      ? 'MOCK — no PayPal credentials. Orders are simulated locally; the receipt check compares against this session, not against PayPal.'
+      : 'SANDBOX — orders are created against the real PayPal sandbox API and the custom_id is read back with GET /orders/{id}.';
   }
 
   async _accessToken() {
@@ -82,13 +106,19 @@ export class PayPalClient {
           experience_context: {
             brand_name: 'Tuesday',
             user_action: 'PAY_NOW',
-            return_url: options.returnUrl || 'https://example.com/return',
-            cancel_url: options.cancelUrl || 'https://example.com/cancel',
+            // ★ Local demo URLs, not example.com. A judge who clicks the approval
+            //   link should land back on something that exists.
+            return_url: options.returnUrl || 'http://localhost:8787/?paypal=return',
+            cancel_url: options.cancelUrl || 'http://localhost:8787/?paypal=cancel',
           },
         },
       },
     };
-    return this._req('POST', '/v2/checkout/orders', body);
+    // ★ Derive the idempotency key from the purchase, so retrying the same purchase
+    //   cannot produce a second order. A caller can override it.
+    const requestId = options.requestId
+      || `create-${purchase.id || purchase.customId || purchase.reason}`;
+    return this._req('POST', '/v2/checkout/orders', body, requestId);
   }
 
   /** Capture an approved order (finalizes payment). */
@@ -100,16 +130,23 @@ export class PayPalClient {
     return this._req('GET', `/v2/checkout/orders/${orderId}`, null);
   }
 
-  async _req(method, path, body) {
+  async _req(method, path, body, requestId) {
     if (this.mock) return this._mockResponse(method, path, body);
 
     const token = await this._accessToken();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+    // ★ PayPal-Request-Id makes create/capture idempotent. Without it a retried
+    //   request is a second order - the exact double-charge this project claims to
+    //   prevent. Derive it from the purchase so a retry of the same purchase cannot
+    //   produce a second order.
+    if (requestId) headers['PayPal-Request-Id'] = requestId;
+
     const res = await fetch(`${this.base}${path}`, {
       method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = await res.json().catch(() => ({}));

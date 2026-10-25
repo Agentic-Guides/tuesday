@@ -30,8 +30,8 @@ const __dir = dirname(fileURLToPath(import.meta.url));
       if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
         v = v.slice(1, -1);
       }
-      // ★PAYPAL_ だけだと LLM が deterministic のままになる（2026-10-24 実測）。
-      //   OLLAMA_API_KEY も .env から読む。CHANNEL3_API_KEY も同様。
+      // Reading only PAYPAL_* left the tribunal on the deterministic engine. The LLM
+      // and catalogue keys come from the same .env, so read them together.
       if (!(k in process.env) &&
           (k.startsWith('PAYPAL_') || k === 'OLLAMA_API_KEY' ||
            k === 'OPENAI_API_KEY' || k === 'LLM_ENDPOINT' || k === 'CHANNEL3_API_KEY')) {

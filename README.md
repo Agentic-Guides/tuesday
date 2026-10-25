@@ -44,7 +44,7 @@ exactly as it would in a terminal. The two lines worth finding are
 
 ```
 PASS  DENIED: createOrder calls — called 0×, expected 0
-PASS  denied → createOrder NOT called — calls=1
+PASS  denied → createOrder NOT called — delta=0
 ```
 
 A DENIED verdict never reaches PayPal at all. `triadCreateOrder()` returns `not_approved` before any
@@ -83,12 +83,13 @@ Each argues in its own words, states a confidence, and votes. **Disagreement is 
 |---|---|
 | ![CONDITIONAL — the Tribunal splits, and the dissent is kept](docs/screenshots/04_debate.png) | ![DENIED — the Auditor and Witness block an over-budget charge](docs/screenshots/03_denied.png) |
 
-*Left: a $42 renewal against a $60 budget comes back CONDITIONAL — one vote for, one against, one
-judging, and the Witness attaches a condition — so the purchase does not proceed on a rounded-up yes.
-Right: a $90 charge against that same $60 budget: the Auditor and Witness block it outright, and the
-dissent map shows exactly who disagreed. (Both verdicts measured on 2026-10-24 against
-`adjudicate()`; the $42 cell that reads CONDITIONAL sits at budget $60, not $100 — see the measured
-matrix below.)*
+*Left: a $42 purchase against a $60 budget comes back CONDITIONAL — one vote for, one against, one
+judging, and the Witness attaches a condition. CONDITIONAL still raises the PayPal order; what changes
+is that the condition travels with it in the receipt, so the human approving the payment sees exactly
+what has to hold. Right: a $90 charge against that same $60 budget: the Auditor and Witness block it
+outright, the dissent map shows who disagreed, and no order is created at all. (Both verdicts measured
+against `adjudicate()`; the $42 cell that reads CONDITIONAL sits at budget $60, not $100 — see the
+measured matrix below.)*
 
 ### The governance dashboard — every decision, every vote, every hash
 
@@ -231,8 +232,8 @@ decision lands.**
 | Agent | Model (different vendor each) | Job |
 |---|---|---|
 | **Advocate** | `deepseek-v4.1-flash` (DeepSeek) | Argues to retry — the subscriber is valuable, the failure looks technical |
-| **Auditor** | `gemma4:31b` (Google) | Opposes only on a concrete, citable risk — repeated failures, churn pattern, margin loss |
-| **Witness** | `gpt-oss:120b` (OpenAI OSS) | Judges both sides and decides: retry / downgrade / release |
+| **Auditor** | `gemma4:31b` (Google) | Opposes on a failed named gate — `G1`–`G5`, the arithmetic of the budget. Never on a vibe |
+| **Witness** | `gpt-oss:120b` (OpenAI OSS) | Judges both sides and returns APPROVE / DENY / CONDITIONAL — plus the `conditions` under which a near-miss becomes payable |
 
 **Three different vendors on purpose.** Three copies of the same model share the same blind spots —
 which defeats the entire point of an adversarial review. (Measurement: the Auditor model was chosen
@@ -368,6 +369,34 @@ the LLMs do, so a model outage or a prompt injection inside a product listing ca
 talk the gates into releasing money. **The models can make a refusal more useful. They
 cannot make an approval happen.**
 
+
+## How the three votes become a decision — the exact rule
+
+"Agents propose, humans decide" is the tagline, but the tagline is not the rule. The rule is
+in `adjudicate()` and it is evaluated in this order, first match wins:
+
+| # | Condition | Verdict | Order created? |
+|---|---|---|---|
+| 1 | **2 or more votes against** | `DENIED` | **No.** The dissent map is built. |
+| 2 | **2 or more votes for, and the Witness attached a condition** | `CONDITIONAL` | Yes — the condition rides along in the receipt |
+| 3 | **2 or more votes for, no condition** | `APPROVED` | Yes |
+| 4 | **1 for, 1 against, and the Witness attached a condition** | `CONDITIONAL` | Yes — a tie is resolved by a stated condition, not by rounding up |
+| 5 | Anything else | `DISSENT` | **No.** The dissent map is built. |
+
+So it is **not** unanimity and it is **not** plain 2-of-3. It is "a refusal of two carries,
+a refusal of one does not." Two concrete consequences a judge should know:
+
+- **Two votes against always loses**, even if the third attached a condition. Before
+  2026-10-24 the condition check ran first, so `against / against / conditional-neutral`
+  produced `CONDITIONAL` and **created a PayPal order anyway**. That was measured, fixed,
+  and now has a regression test.
+- **The tie-break in row 4 is deliberate.** "Advocate pushes, Auditor blocks, Witness
+  bridges with a condition" is the behaviour this product exists to show. Sending that to
+  `DISSENT` would delete the product. Because row 1 runs first, the tie-break can never
+  release money past two objectors.
+
+Every row is covered by `tests/moneyGate.test.js`, and the 4×4 matrix further down is
+computed live by the same function.
 
 ## The auditor rejects with named gates, not opinions
 

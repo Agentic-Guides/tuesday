@@ -64,9 +64,9 @@ const ARGS = {
     auditor: a('auditor', 'for', ['within budget']),
     witness: a('witness', 'neutral', ['both sides agree']),
   },
-  // ★CONDITIONAL は「賛成2票以上 + Witness が条件を付ける」場合だけ。
-  //   以前は賛成1票 + 条件でも CONDITIONAL にしていたが、それは
-  //   「3体の合意が必要」という主張と矛盾していた（2026-10-24 修正）。
+  // CONDITIONAL requires 2 votes for PLUS a condition from the Witness. This case
+  // exists because the earlier rule also returned CONDITIONAL on a single vote for,
+  // which contradicted the claim that the agents must agree. Fixed 2026-10-24.
   CONDITIONAL: {
     advocate: a('advocate', 'for', ['worth it']),
     auditor: a('auditor', 'for', ['fits the budget but tight']),
@@ -188,8 +188,12 @@ console.log('\n=== 4. Integration: real engine (no stub) ===');
   check('over-budget → DENIED', no.decision === DECISION.DENIED, no.decision);
   const before = paypal.createOrderCalls;
   const o2 = await triad.triadCreateOrder({ purchaseId: no.purchase.id });
-  check('denied → createOrder NOT called', paypal.createOrderCalls === before && o2.ok === false,
-    `calls=${paypal.createOrderCalls}`);
+  // ★ Report the delta, not the absolute count. The absolute count is non-zero here
+  //   because the APPROVED case above already created one order; printing "calls=1"
+  //   next to "NOT called" reads like the assertion is lying. What matters is that
+  //   the DENIED attempt added zero.
+  const delta = paypal.createOrderCalls - before;
+  check('denied → createOrder NOT called', delta === 0 && o2.ok === false, `delta=${delta}`);
 
   const ledger = triad.triadGetLedger();
   check('ledger records receipt hash', ledger.entries.every(e => /^[0-9a-f]{16}$/.test(e.receiptHash)));

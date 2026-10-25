@@ -48,3 +48,30 @@ out/
 _tts/
 _shot/
 
+# Backups and one-off measurement scripts are not part of the product. The audit
+# scripts that produced the numbers in the README are kept, but as named tools in
+# docs/scripts, not as underscore-prefixed scratch files in the root.
+*.bak_*
+*.bak_round*
+*.bak_before_*
+_audit_*.mjs
+_check_*.mjs
+_measure_*.mjs
+_plan_*.mjs
+_seed_*.mjs
+_verify_*.mjs
+_*.py
+!docs/scripts/*.py
+devpost-video/_*.py
+demo/index.html.bak*
+
+# Old demo cuts. Only the current cut belongs in the tree; earlier takes are
+# superseded and add hundreds of MB to a clone.
+devpost-media/tuesday_submission_v17_*.mp4
+devpost-media/tuesday_submission_v18_1080p_cursor.mp4
+devpost-media/tuesday_submission_v18_final.mp4
+
+# No rendered video in the tree. The demo video lives on YouTube (linked from the
+# README and the Devpost form) and is 18-20MB per cut; two cuts in git would make
+# every clone 38MB heavier for a file nobody needs to build the project.
+devpost-media/*.mp4

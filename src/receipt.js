@@ -1,32 +1,31 @@
 /**
  * Tuesday — Consensus Receipt
  *
- * 合意（または対立）の結果を、改ざん不能な監査証跡として固定する。
+ * Pin the outcome of a consensus (or a disagreement) as a tamper-evident audit trail.
  *
- * decision + 3エージェントの投票 + 各エージェントの推論本文の指紋 を
- * 正規化JSONにし、SHA-256 の先頭16桁を「合意指紋」とする。
- * この指紋を PayPal order の custom_id に刻むことで、
- * 支払い記録そのものが監査証跡になる。
+ * The decision, all three votes and a fingerprint of each agent's reasoning are
+ * canonicalised into JSON and hashed with SHA-256; the leading 16 hex characters are
+ * the consensus fingerprint. Stamping that fingerprint into a PayPal order's
+ * custom_id makes the payment record itself the audit trail.
  *
- *   → "an AI bought this" ではなく
- *      "どのエージェントが、どの根拠で、どう投票したか" が
- *      決済レコード（custom_id → ledger）から復元できる。
+ *   → not "an AI bought this", but
+ *     "which agent voted what, and on which grounds", recoverable
+ *     from the payment record itself (custom_id → ledger).
  *
- * 設計原則:
- *   - ハッシュは全フィールド（timestamp 含む）を対象にする。
- *     検証時は保存済み receipt をそのまま再ハッシュして照合するので、
- *     1文字でも書き換えれば照合が落ちる（改ざん検知）。
- *   - 依存ゼロ（node:crypto のみ）。
+ * Design rules:
+ *   - The hash covers every field, including the timestamp. Verification re-hashes
+ *     the stored receipt as-is, so changing a single character breaks the match.
+ *   - Zero dependencies (node:crypto only).
  */
 
 import { createHash } from 'node:crypto';
 
-/** custom_id の先頭に付ける名前空間（PayPal の custom_id 内で衝突回避）。 */
+/** Namespace prefix for custom_id, so these values cannot collide inside PayPal. */
 export const RECEIPT_PREFIX = 'triad1';
 
 /**
- * キーを再帰的にソートした決定論的JSON文字列。
- * 同じ内容なら、キーの順序や生成経路が違っても必ず同じ文字列になる。
+ * Deterministic JSON with keys sorted recursively.
+ * Same content in, same string out — regardless of key order or construction path.
  */
 export function canonicalize(value) {
   if (value === undefined || value === null) return 'null';
@@ -40,7 +39,7 @@ export function canonicalize(value) {
   return JSON.stringify(value);
 }
 
-/** 任意の値の SHA-256 先頭16桁（= 64bit の合意指紋）。 */
+/** Leading 16 hex characters of SHA-256 (64-bit consensus fingerprint). */
 export function fingerprint(value) {
   return createHash('sha256').update(canonicalize(value)).digest('hex').slice(0, 16);
 }
@@ -50,11 +49,11 @@ function fp(value) {
 }
 
 /**
- * adjudicate() の結果から consensus receipt を組み立てる。
+ * Build a consensus receipt from the result of adjudicate().
  *
- * @param {object} result adjudicate() の戻り値（decision / purchase / arguments / threshold）
+ * @param {object} result the return value of adjudicate() (decision / purchase / arguments / threshold)
  * @param {object} [opts] { engine, at }
- * @returns {object} receipt（末尾に `hash` = 合意指紋）
+ * @returns {object} receipt, with `hash` = the consensus fingerprint
  */
 export function buildReceipt(result, { engine = null, at = null } = {}) {
   const a = result.arguments || {};
@@ -75,7 +74,8 @@ export function buildReceipt(result, { engine = null, at = null } = {}) {
       auditor: a.auditor?.model ?? null,
       witness: a.witness?.model ?? null,
     },
-    // 推論の「指紋」。本文そのものは ledger に残し、receipt には要約として刻む。
+    // Fingerprint of the reasoning. The prose itself stays in the ledger; the receipt
+ // carries only the fingerprint.
     reasoning: {
       advocate: fp(a.advocate?.reasons),
       auditor: fp(a.auditor?.reasons),
@@ -87,15 +87,15 @@ export function buildReceipt(result, { engine = null, at = null } = {}) {
   return { ...core, hash: fingerprint(core) };
 }
 
-/** receipt を PayPal の custom_id に載せるための文字列を返す。 */
+/** The string to carry in PayPal's custom_id for this receipt. */
 export function receiptCustomId(receipt) {
   if (!receipt?.hash) throw new Error('receipt.hash missing');
   return `${RECEIPT_PREFIX}:${receipt.hash}`;
 }
 
 /**
- * 改ざん検知 — 保存済み receipt を再ハッシュし、hash と一致するか検証する。
- * @returns {boolean} true = 無改ざん
+ * Tamper detection: re-hash the stored receipt and compare against its hash.
+ * @returns {boolean} true = unmodified
  */
 export function verifyReceipt(receipt) {
   if (!receipt || typeof receipt.hash !== 'string') return false;
@@ -103,7 +103,7 @@ export function verifyReceipt(receipt) {
   return fingerprint(core) === hash;
 }
 
-/** custom_id（triad1:xxxx）から指紋部分を取り出す。 */
+/** Extract the fingerprint out of a custom_id (triad1:xxxx). */
 export function hashFromCustomId(customId) {
   const m = /^triad1:([0-9a-f]{16})$/.exec(String(customId || ''));
   return m ? m[1] : null;

@@ -16,13 +16,13 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0 }
   :root {
-    /* ★ベージュ階層（hai Lab の paper/ink 設計を赤に翻訳） */
-    --bg: #f0eadf;           /* 一番外側＝温かい紙（ベージュ） */
-    --panel-2: #e8e1d3;      /* 沈んだ面（濃いベージュ） */
-    --sunken: #e2dac9;       /* さらに沈む面 */
-    --panel: #ffffff;        /* カード＝純白で浮かせる */
-    --line: #d9d0bd;         /* 罫線（ベージュ寄り） */
-    --line-2: #c9bfa9;       /* 強めの罫線 */
+    /* Warm paper tiers, translated into red ink. */
+    --bg: #f0eadf;           /* outermost: warm paper */
+    --panel-2: #e8e1d3;      /* recessed surface */
+    --sunken: #e2dac9;       /* deeper recess */
+    --panel: #ffffff;        /* cards float on pure white */
+    --line: #d9d0bd;         /* hairline */
+    --line-2: #c9bfa9;       /* stronger hairline */
     --adv: #15803d; --aud: #be123c; --wit: #1d4ed8;
     --gold: #c0203c; --dim: #5c554b; --txt: #241f1a;
   }
@@ -46,13 +46,13 @@
       0 26px 60px -34px rgba(88,60,180,.45),
       0 2px 10px -4px rgba(0,0,0,.45);
   }
-  /* 上端の光るライン（光が当たっているように見せる） */
+  /* Top light line, so the panel reads as lit from above. */
   .panel::after {
     content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
     background: linear-gradient(90deg, transparent, var(--line) 30%, var(--line) 70%, transparent);
     border-radius: 26px 26px 0 0; pointer-events: none;
   }
-  /* 内側のヘアライン（Double-Bezel の「内殻」に相当） */
+  /* Inner hairline — the inner shell of the double bezel. */
   .panel::before {
     content: ""; position: absolute; inset: 6px;
     border: 1px solid rgba(0,0,0,0.038);
@@ -137,7 +137,8 @@
   .kv { display:grid; grid-template-columns:150px 1fr; gap: 4px 12px; font-size:14px; }
   .kv .k { color:var(--dim); }
   .kv .v { font-family:ui-monospace,Menlo,Consolas,monospace; word-break:break-all; }
-  /* AG Grid: レシート列はツールチップで全文を見せる（セルは壊さない） */
+  /* AG Grid: the receipt column shows its full value in a tooltip rather than */
+  /* widening the cell. */
   .ag-theme-quartz .ag-cell[col-id='receipt'] {
     font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size: 12px;
@@ -250,18 +251,18 @@
 
   
   /* ═══════════════════════════════════════════════════════════════════
-     ★ Ethereal Glass レイヤー（2026-10-10 v2）
-     high-end-visual-design スキル準拠:
-       - フォント: Plus Jakarta Sans（Geist 代替・Inter 禁止）
-       - 配色: OLED #18181b + radial mesh gradient（紫/緑の光球）
-       - 影: 黒ベタ禁止 → 背景の色味を帯びた影（青紫寄り）
-       - 遷移: custom cubic-bezier（linear/ease-in-out 禁止）
-       - blur: 固定/ヘッダのみ（スクロール要素には当てない）
-       - カード: Double-Bezel（外殻 + 内殻）
-       - ボタン: 丸ピル + Button-in-Button
+     Ethereal glass layer (v2)
+     House visual rules this page follows:
+       - Type: Plus Jakarta Sans
+       - Palette: near-black ground + a radial mesh gradient
+       - Shadow: never flat black; tint it toward the background
+       - Transitions: custom cubic-bezier, never linear/ease-in-out
+       - Blur: fixed elements and the header only, never scrolling surfaces
+       - Cards: double bezel (outer shell + inner shell)
+       - Buttons: full pill, with a button-in-button for trailing icons
      ═══════════════════════════════════════════════════════════════════ */
 
-  /* ── 基盤：OLED黒 + radial mesh gradient ──────────────────────── */
+  /* ── Foundation: near-black ground + radial mesh gradient ────────── */
   html { scroll-behavior: smooth; }
   body {
     font-family: "Plus Jakarta Sans", -apple-system, "Segoe UI", sans-serif;
@@ -275,7 +276,7 @@
   }
   .wrap { max-width: 1180px; }
 
-  /* ── 見出し：重く・詰める・存在感 ───────────────────────────── */
+  /* ── Headings: heavy, tight, deliberate ────────────────────────── */
   h1 {
     font-size: clamp(40px, 6.6vw, 74px);
     letter-spacing: -.028em;
@@ -289,19 +290,19 @@
   .sub { font-size: 15px; line-height: 1.75; color: #3d372f; max-width: 68ch; margin: 16px auto 0; text-wrap: balance; }
   header { margin-bottom: 48px }
 
-  /* ── Eyebrow Tag（見出しの前の微小バッジ）───────────────────── */
+  /* ── Eyebrow tag: the micro badge above a heading ──────────────── */
   .tags { margin: 16px 0 24px; gap: 8px; justify-content: center }
   .tag { display:inline-flex; align-items:center; font-size:10px; text-transform:uppercase; letter-spacing:.14em; font-weight:700; color:#3f3a33; border:1px solid var(--line-2); background:var(--sunken); padding:4px 12px; border-radius:999px; }
   .tag:hover { border-color: #a1a1aa; background: var(--line); }
 
-  /* ── Double-Bezel（外殻 + 内殻）────────────────────────────── */
+  /* ── Double bezel (outer shell + inner shell) ───────────────────── */
   .panel { background: #ffffff; border:1px solid var(--line); border-radius:30px; padding:8px; margin-bottom:24px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
   .panel h2 {
     font-size: 11px; text-transform: uppercase; letter-spacing: .2em;
     color: #241f1a; font-weight: 600; margin-bottom: 16px
   }
 
-  /* ── カード（エージェント）：内殻も二重に ────────────────────── */
+  /* ── Agent cards: the inner shell is doubled too ────────────────── */
   .agent { background:#ffffff; border:1px solid var(--line); border-radius:20px; padding:16px 16px; }
   .agent::before {
     content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
@@ -318,7 +319,7 @@
   .agent.auditor:hover  { box-shadow: 0 22px 46px -22px rgba(248,113,113,.42); }
   .agent.witness:hover  { box-shadow: 0 22px 46px -22px rgba(96,165,250,.42); }
 
-  /* ── ボタン：丸ピル + 押下の物理感 ─────────────────────────── */
+  /* ── Buttons: full pill, with physical travel on press ─────────── */
   button {
     border-radius: 999px; padding: 16px 24px; font-size: 14.5px; font-weight: 700;
     letter-spacing: -.005em;
@@ -338,13 +339,13 @@
   button.secondary { background:#ffffff; color:#241f1a; border:1px solid var(--line); box-shadow:none; }
   button.secondary:hover { background:var(--sunken); border-color:#a1a1aa; box-shadow:0 2px 6px rgba(0,0,0,.06); }
 
-  /* ── タブ ─────────────────────────────────────────────────── */
+  /* ── Tabs ───────────────────────────────────────────────────────── */
   .tabbar { gap: 8px; justify-content: center; margin: 0 0 24px }
   .tab { border-radius:999px; padding:8px 16px; font-size:13px; font-weight:700; background:var(--sunken); color:#2b2722; border:1px solid var(--line-2); transition:all .28s cubic-bezier(.32,.72,0,1); }
   .tab:hover { color: #241f1a; border-color: var(--line-2); }
   .tab.active { background: #c0203c; color: #ffffff; border-color: #c0203c; box-shadow: 0 8px 20px -14px rgba(207,31,63,.55); }
 
-  /* ── 入力 ─────────────────────────────────────────────────── */
+  /* ── Inputs ─────────────────────────────────────────────────────── */
   input, select {
     background: #ffffff; border: 1px solid var(--line);
     border-radius: 10px; padding: 12px 14px; color: #241f1a; font-size: 16px; font-weight: 500;
@@ -355,7 +356,7 @@
     box-shadow: 0 0 0 3px rgba(192,32,60,.16); }
   label { font-size: 12px; letter-spacing: .12em; color: #241f1a; font-weight: 700; }
 
-  /* ── メトリクス／レシート ─────────────────────────────────── */
+  /* ── Metrics and receipt ────────────────────────────────────────── */
   .metric, .receipt { background:#ffffff; border:1px solid var(--line); border-radius:18px; box-shadow:0 1px 2px rgba(0,0,0,.04); transition:all .28s cubic-bezier(.32,.72,0,1); }
   .metric:hover { border-color: var(--line-2); transform: translateY(-2px); }
   .metric .v { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: #241f1a; }
@@ -363,7 +364,7 @@
   .kv .v { font-variant-numeric: tabular-nums; }
   .receipt h4 { font-size: 10px; letter-spacing: .18em; color: #a7aec0; }
 
-  /* ── 判定（decision）─────────────────────────────────────── */
+  /* ── Decision states ────────────────────────────────────────────── */
   .decision { border-radius: 22px; padding: 24px }
   .decision .big { font-size: 30px; letter-spacing: .04em; font-weight: 800; }
   .d-APPROVED    { background: rgba(16,185,129,.10); border: 1px solid rgba(16,185,129,.42); }
@@ -376,10 +377,9 @@
   .d-DISSENT     { background: rgba(249,115,22,.10); border: 1px solid rgba(249,115,22,.42); color:#7c2d12; }
 
 
-  /* ═══ ★AG Grid の高さを【行数に応じて伸ばす】═══════════════════════
-     AG Grid は固定 height が必須。行数が増えたら高さも増やす。
-     上限（画面の70%）を超えたらグリッド内スクロールに切り替える。 */
-  /* ── モーション（custom cubic-bezier のみ）────────────────── */
+  /* AG Grid needs an explicit height: grow it with the row count, and switch to
+     internal scrolling once it would exceed 70% of the viewport. */
+  /* ── Motion: custom cubic-bezier only ───────────────────────────── */
   @keyframes rise-in {
     from { opacity: 0; transform: translateY(18px); filter: blur(6px); }
     to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
@@ -409,7 +409,7 @@
   }
   h1 { animation: title-glow 0.30s cubic-bezier(.45,.05,.55,.95) infinite; }
 
-  /* ── 固定オーバーレイ（grain + 上端ヘアライン）────────────── */
+  /* ── Fixed overlay: grain + top hairline ────────────────────────── */
   body::before {
     content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none;
     background-image:none;
@@ -420,13 +420,13 @@
     background: linear-gradient(90deg, transparent, var(--line) 24%, var(--line) 76%, transparent);
   }
 
-  /* ── スクロールバー ──────────────────────────────────────── */
+  /* ── Scrollbar ──────────────────────────────────────────────────── */
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: var(--sunken); }
   ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
   ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
 
-  /* ── アクセシビリティ ────────────────────────────────────── */
+  /* ── Accessibility ──────────────────────────────────────────────── */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
@@ -437,24 +437,24 @@
     h1 { font-size: clamp(34px, 10vw, 46px); }
   }
 
-  /* ═══ ★v2.1 残り2点の是正（2026-10-10）══════════════════════════ */
-  /* ① ボタンを完全な丸ピルに（既存の button{border-radius:9px} を打ち消す） */
+  /* v2.1 — the two remaining corrections from the design review. */
+  /* (1) Make buttons full pills, overriding the base 9px radius. */
   button, button.secondary, .verify-bar button {
     border-radius: 999px !important;
     display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 24px; width: auto; max-width: 100%;
   }
-  /* 主要なアクションボタン：中央寄せで程よい幅（全幅にしない） */
+  /* Primary actions: centred at a measured width, not full-bleed. */
   .panel > button { width: auto; min-width: 340px; display: flex; margin: 4px auto 0 }
   .panel > button.full { width: 100%; min-width: 0; }
-  /* アクション行のボタンは横並び（全幅に伸ばさない） */
+  /* Action-row buttons sit side by side and do not stretch. */
   .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .actions button { flex: 0 1 auto; }
-  /* フォーム内の主ボタンだけは幅いっぱいでよい */
-  /* ④ タップ領域 44px 以上（make-it-look-good: Blocker） */
+  /* Only a form's primary button may take the full width. */
+  /* (4) Tap targets of at least 44px. */
   button, .tab, .tag, .votechip, input, select { min-height: 44px; }
   .tag { min-height: 24px; }
   .votechip { min-height: 20px; }
-  /* ② Button-in-Button：末尾アイコンを専用の丸に収める */
+  /* (2) Button-in-button: the trailing icon gets its own circle. */
   .btn-ico {
     display: inline-flex; align-items: center; justify-content: center;
     width: 26px; height: 26px; border-radius: 999px;
@@ -465,24 +465,24 @@
   button:hover .btn-ico { transform: translate(2px,-1px) scale(1.06); background: rgba(255,255,255,0.3); }
   button.secondary .btn-ico { background: var(--sunken); }
 
-  /* ③ タブも丸ピルを維持 */
+  /* (3) Tabs keep the pill shape. */
   .tab { border-radius: 999px !important; }
-  /* ④ 入力欄は丸めを強めに（ピルにしない・スキルは丸すぎを避ける） */
+  /* (4) Inputs are rounded but not pills. */
   input, select { border-radius: 14px !important; }
 
-  /* ═══ ★v2.2 スマホ版（768px以下）の修正 ─────────────────────────── */
+  /* v2.2 — corrections for narrow viewports (768px and below). */
   @media (max-width: 768px) {
     body { padding: 24px 16px 72px }
 
-    /* ① H1 は控えめに、でも存在感は残す */
+    /* (1) The H1 gets quieter but keeps its presence. */
     h1 { font-size: clamp(32px, 11vw, 42px); letter-spacing: -.02em; line-height: 1.02; }
     .sub { font-size: 15px; line-height: 1.85; margin-top: 12px }
 
-    /* ② タグは少し小さく、でもタップしやすく */
+    /* (2) Tags get slightly smaller and stay easy to tap. */
     .tags { gap: 8px; margin-bottom: 12px }
     .tag { font-size: 9.5px; padding: 4px 12px; }
 
-    /* ③ ★タブバー：折り返しを許可して【文字が潰れない】ように */
+    /* (3) The tab bar wraps, so labels never crush. */
     .tabbar {
       display: flex; flex-wrap: wrap; gap: 8px
     }
@@ -493,11 +493,11 @@
     }
     .tab:last-child:nth-child(odd) { flex-basis: 100%; }
 
-    /* ④ ★ボタン：全文が1〜2行で収まるように、パディングを締める */
+    /* (4) Tighten button padding so its label fits in one or two lines. */
     button, button.secondary {
       padding: 12px 16px !important;
       font-size: 14px !important;
-      min-height: 50px;              /* タップ領域 */
+      min-height: 50px;              /* tap target */
       line-height: 1.3;
       gap: 8px;
       white-space: normal;
@@ -505,13 +505,13 @@
     .verify-bar { flex-wrap: wrap; }
     .verify-bar button { width: 100%; }
 
-    /* ⑤ レイアウト */
+    /* (5) Layout */
     .grid3, .grid2 { grid-template-columns: 1fr; gap: 12px }
     .metrics { grid-template-columns: repeat(2, 1fr); gap: 8px }
     .metric { padding: 12px }
     .metric .v { font-size: 25px; }
 
-    /* ⑥ パネル/カードの余白を締める（狭い画面で重くならないように） */
+    /* (6) Tighten panel and card padding so narrow screens do not feel heavy. */
     .panel { border-radius: 20px; padding: 16px 16px 16px; margin-bottom: 16px }
     .panel::before { inset: 5px; border-radius: 15px; }
     .agent { padding: 16px 16px; border-radius: 17px; }
@@ -520,13 +520,13 @@
     .kv { grid-template-columns: 108px 1fr; gap: 4px 8px; font-size: 12px; }
     .receipt { padding: 16px }
 
-    /* ⑦ 入力欄は 16px 以上（iOS の自動ズーム防止） */
+    /* (7) Inputs at 16px or more, which stops iOS from zooming on focus. */
     input, select { font-size: 16px !important; padding: 12px 12px; min-height: 50px; }
 
-    /* ⑧ AG Grid の高さを詰める */
+    /* (8) Reduce the AG Grid height. */
     }
 
-  /* 極小（360px以下）*/
+  /* Very small (360px and below) */
   @media (max-width: 380px) {
     h1 { font-size: 30px; }
     button, button.secondary { font-size: 13px !important; padding: 12px 12px !important }
@@ -716,7 +716,7 @@
 
 <script>
 
-/* ★AG Grid: 行数に応じて高さを自動調整（1行も見落とさない） */
+/* AG Grid: size to the row count so no decision is ever clipped. */
 function fitGridHeight(gridEl, api, rowCount) {
   if (!gridEl || !api) return;
   const ROW = 36;          // one data row (AG Grid default row height is 25 + padding)
@@ -743,10 +743,10 @@ async function api(path, body) {
   // disabled, every later click is swallowed, and the reviewer sees a frozen
   // page with no error. Abort instead, and let the caller show what happened.
   const ctl = new AbortController();
-  // ★実測（2026-10-24）: /api/shop は 5商品 × 3体の LLM 判定で 15 秒を超える。
-  //   15 秒で打ち切るとボタンが無反応に見え、Shop タブが「壊れている」と
-  //   誤解される（実際に動画撮影で商品が一度も出なかった）。
-  //   /api/grid は 16マス × 3体で 74.5 秒かかるので、上限は 240 秒にする。
+  // Measured: /api/shop runs 5 products x 3 LLMs and takes more than 15 seconds.
+  // Cutting it at 15s makes the button look dead and the Shop tab look broken — which
+  // is exactly what happened while recording the demo. /api/grid takes 74.5s for 16
+  // cells x 3 agents, so the ceiling here is 240s.
   const TIMEOUT_MS = (path === '/api/grid' || path === '/api/shop') ? 240000 : 15000;
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
@@ -859,8 +859,9 @@ function voteChips(votes) {
 function initLedgerGrid() {
   ledgerGridApi = agGrid.createGrid(document.getElementById('auditGrid'), {
     columnDefs: [
-      // ★起動時に生成される演出用の履歴と、実際の判断を区別する。
-      //   この列が無いと、審査員は seed された6件を「実際の実績」と誤解する。
+      // Distinguish the history generated at startup from decisions actually made in
+      // this session. Without this column a reader takes the six seeded rows for real
+      // track record.
       { field: 'seeded', headerName: 'Source', width: 112, minWidth: 104,
         cellRenderer: p => p.value
           ? '<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:#fef3c7;color:#92400e;font-weight:600">demo</span>'
@@ -923,8 +924,13 @@ function showReceipt(entry) {
     const out = document.getElementById('verifyOut');
     out.textContent = 'verifying…';
     const r = await api('/api/verify', { orderId: entry._orderId, purchaseId: entry._purchaseId });
+    // ★ Say WHERE the custom_id came from. With sandbox keys the value is re-read from
+    //   the PayPal API; without them it is the copy this session is holding, and calling
+    //   that "matches PayPal" would be a claim the demo has not earned.
     out.innerHTML = r.ok
-      ? `<span class="ok">✓ verified</span> — hash matches PayPal order custom_id (${r.customId})`
+      ? (r.live
+          ? `<span class="ok">✓ verified</span> — re-read from the PayPal API: custom_id ${r.customId} matches the receipt`
+          : `<span class="muted">✓ consistent (local)</span> — no PayPal round-trip. custom_id ${r.customId} matches the value held in this session; add sandbox keys to check it against PayPal itself.`)
       : `<span class="bad">✗ ${r.error || 'not verified'}</span>`;
   };
 }
@@ -937,8 +943,7 @@ async function refreshLedger() {
     decision: e.decision, summary: e.summary, customId: e.customId, receiptHash: e.receiptHash,
     votes: e.votes, models: e.models, engine: e.engine, threshold: e.threshold,
     dissentMap: e.dissentMap, receiptIntact: e.receiptIntact,
-    // ★起動時に生成される演出用の履歴。UI で明示しないと
-    //   「実際の判断実績」と誤解されるため、行に印を付ける。
+    // History generated at startup. Mark each row, or it reads as real track record.
     seeded: e.seeded === true,
     _purchaseId: e.purchase?.id,
   })).reverse();

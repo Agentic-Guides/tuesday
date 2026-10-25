@@ -1,26 +1,30 @@
 /**
  * Tuesday — Adversarial Consensus Engine
- * 敵対的マルチエージェント金融統制
  *
- * 3体の独立したAIが金の使い方を議論し、閾値合意でのみ決済を承認する。
- * 「トライアド（三者審理）」がこの作品の核であり、レシートの接頭辞 `triad1:` はここに由来する。
+ * Three independent AI agents argue over whether the money may be spent. The
+ * tribunal is the product; the receipt prefix `triad1:` is named after it.
  *
- *   ADVOCATE  — 買いたい（欲求を代表）
- *   AUDITOR   — 止めたい（予算・リスクを代表）
- *   WITNESS   — 中立の判定者
+ *   ADVOCATE  — argues for the purchase (represents the want)
+ *   AUDITOR   — argues against it (represents the budget and the risk)
+ *   WITNESS   — the neutral judge
  *
- * 合意ルール:
- *   - 2-of-3 または 3-of-3 の合意でのみ APPROVED
- *   - APPROVED → PayPalで決済実行（ステージ→人間承認→コミット）
- *   - DISSENT  → 対立地図を生成（誰が何で譲らないか）
+ * Decision rule (see adjudicate() — first match wins, this is NOT plain 2-of-3):
+ *   1) 2 or more votes against                        -> DENIED     no order
+ *   2) 2 or more for, Witness attached a condition    -> CONDITIONAL order raised
+ *   3) 2 or more for, no condition                    -> APPROVED    order raised
+ *   4) 1 for, 1 against, Witness attached a condition -> CONDITIONAL order raised
+ *   5) anything else                                  -> DISSENT    no order
  *
- * 設計原則:
- *   エージェントは「買う/買わない」を決めない。
- *   「対立の形」を人間に見せる。最終決定権は常に人間にある。
+ *   DENIED / DISSENT build a dissent map: who disagreed, on what, and how far
+ *   they would not move. A refusal of two always wins, so the tie-break in (4)
+ *   can never release money past two objectors.
+ *
+ * Design principle: the agents never decide WHETHER to buy. They show the human
+ * the shape of the disagreement. The final call always belongs to a person.
  */
 
 // ---------------------------------------------------------------------------
-// エージェント定義
+// Agent definitions
 // ---------------------------------------------------------------------------
 
 /**
@@ -41,12 +45,12 @@ function gateSentence(id) {
 }
 
 export const ROLES = {
-  ADVOCATE: 'advocate', // 買いたい
-  AUDITOR: 'auditor',   // 止めたい
-  WITNESS: 'witness',   // 中立判定
+  ADVOCATE: 'advocate', // argues for the purchase
+  AUDITOR: 'auditor',   // argues against it
+  WITNESS: 'witness',   // neutral judge
 };
 
-// 各エージェントの利害・性格・拒否条件を定義する
+// Each agent's interest, temperament and refusal conditions
 export function makeAgent(role, modelId, constraints = {}) {
   const base = {
     advocate: {
@@ -88,7 +92,7 @@ export function makeAgent(role, modelId, constraints = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// 対立（Argument）モデル
+// The argument (dissensus) model
 // ---------------------------------------------------------------------------
 
 function mkArgument(agent, verdict, reasons, options = {}) {
@@ -98,23 +102,23 @@ function mkArgument(agent, verdict, reasons, options = {}) {
     stance: agent.stance,
     verdict,               // 'for' | 'against' | 'neutral'
     reasons,               // string[]
-    conditions: options.conditions ?? null, // WITNESSの条件付き承認
+    conditions: options.conditions ?? null, // the Witness's conditional approval
     confidence: options.confidence ?? 0.5,
     model: agent.model,
-    // ★ 監査ゲート（実測できる形で残す）。
-    //   失敗したゲートの【名前】が無い verdict は「意見」であって監査ではない。
+    // Audit gates, kept in a form that can be measured. A verdict without the NAME of
+    // the gate it failed is an opinion, not an audit.
     gates: options.gates ?? null,
     failedGates: options.failedGates ?? null,
   };
 }
 
 // ---------------------------------------------------------------------------
-// 各エージェントの「思考」— プラガブル（LLM呼び出し or 決定論的ルール）
+// Each agent's reasoning — pluggable (an LLM call, or a deterministic rule)
 // ---------------------------------------------------------------------------
 
 /**
- * 決定論的フォールバック。LLMが使えない環境でもエンジンが動く。
- * これによりデモが「必ず動く」ことを保証する。
+ * Deterministic fallback. The engine runs even where no LLM is reachable, which is
+ * what lets this demo always run — and what stops a model outage from moving money.
  */
 export function deterministicReason(agent, purchase) {
   const { amount, category, reason } = purchase;
@@ -236,7 +240,7 @@ export function deterministicReason(agent, purchase) {
     }
     return mkArgument(agent, verdict, reasons, {
       confidence: 0.68,
-      gates,               // ★各ゲートの合否（却下理由の名前が残る）
+      gates,               // pass/fail per gate, so the refusal keeps its name
       failedGates,
     });
   }
@@ -297,7 +301,7 @@ export function deterministicJudge(agent, purchase, forArg, againstArg) {
 }
 
 // ---------------------------------------------------------------------------
-// 合意エンジン
+// The consensus engine
 // ---------------------------------------------------------------------------
 
 export const DECISION = {
@@ -308,10 +312,10 @@ export const DECISION = {
 };
 
 /**
- * 3エージェントの議論を集約する。
+ * Fold the three agents' arguments into one decision.
  * @param {object} purchase { amount, category, reason }
- * @param {object} args { advocate, auditor, witness } 各エージェントのArgument
- * @param {number} threshold 合意に必要な票数（デフォルト2）
+ * @param {object} args { advocate, auditor, witness } — each agent's argument
+ * @param {number} threshold votes needed for approval (default 2)
  */
 export function adjudicate(purchase, args, threshold = 2) {
   const { advocate, auditor, witness } = args;
@@ -320,26 +324,25 @@ export function adjudicate(purchase, args, threshold = 2) {
   const votesAgainst = [advocate, auditor, witness].filter(a => a && a.verdict === 'against').length;
   const hasCondition = witness?.conditions != null && String(witness.conditions).trim() !== '';
 
-  // ★判定順序（2026-10-24 修正）
+  // Decision order (fixed 2026-10-24). First match wins.
   //
-  // 以前は hasCondition を最優先していたため、
-  //   A=against / B=against / W=neutral(条件付き) → CONDITIONAL
-  // となり、反対2票でも PayPal 注文が作れてしまった（実測で確認）。
-  // 全会一致の反対（3票）でも CONDITIONAL になっていた。
+  // The check used to run hasCondition FIRST, so
+  //   advocate=against / auditor=against / witness=neutral-with-condition
+  // came back CONDITIONAL and CREATED A PAYPAL ORDER despite two objectors. That was
+  // measured, not theorised. Unanimous rejection (3 against) also came back
+  // CONDITIONAL. The order below is "refusal first, agreement second", with one
+  // deliberate exception: a 1-vs-1 tie may be resolved by a stated condition.
   //
-  // 修正後は「拒否が先、合意は後」。ただし対立1対1を条件で解く道は残す
-  // （これがこの製品の物語そのものだから）。
+  //   1) 2 or more against                      -> DENIED       no order
+  //   2) threshold or more for, with condition  -> CONDITIONAL  order raised
+  //      threshold or more for, no condition    -> APPROVED     order raised
+  //   3) 1 for, 1 against, Witness conditions   -> CONDITIONAL  order raised
+  //   4) anything else                          -> DISSENT      no order
   //
-  //   1) 反対が2票以上                        → DENIED       金額を動かせない
-  //   2) 賛成が threshold 以上                 → CONDITIONAL  条件があれば
-  //                                             APPROVED     条件がなければ
-  //   3) 賛成1 + 反対1 + Witness が条件を提示  → CONDITIONAL  対立を条件で解く
-  //   4) それ以外                             → DISSENT      合意なし。人間の判断へ
-  //
-  // 3) を入れている理由: 「Advocate が押し、Auditor が止め、Witness が条件を
-  // 付けて橋を架ける」というのが本製品の中心的な振る舞いであり、
-  // これを DISSENT に落とすと製品の意味がなくなる。
-  // 反対2票は 1) で先に落ちるので、この経路が金の抜け穴にはならない。
+  // Why (3) exists: "the Advocate pushes, the Auditor blocks, the Witness bridges
+  // with a condition" is the behaviour this product exists to demonstrate. Sending
+  // that to DISSENT would delete the product. Because (1) runs first, this path can
+  // never release money past two objectors.
   let decision;
   if (votesAgainst >= 2) {
     decision = DECISION.DENIED;
@@ -358,7 +361,8 @@ export function adjudicate(purchase, args, threshold = 2) {
     threshold,
     purchase,
     arguments: args,
-    // 決定とともに「なぜ」を残す。人間に結果ではなく対立の形を見せる。
+    // Carry the WHY alongside the decision: show the human the shape of the
+    // disagreement, not just the outcome.
     dissentMap: decision === DECISION.DISSENT || decision === DECISION.DENIED
       ? buildDissentMap(args)
       : null,
@@ -366,7 +370,7 @@ export function adjudicate(purchase, args, threshold = 2) {
 }
 
 /**
- * 対立地図 — 誰が・何で・どこまで譲らないか。
+ * The dissent map — who disagreed, on what, and how far they would not move.
  */
 export function buildDissentMap(args) {
   const map = [];
@@ -391,7 +395,7 @@ export function buildDissentMap(args) {
 }
 
 // ---------------------------------------------------------------------------
-// ユーティリティ
+// Utilities
 // ---------------------------------------------------------------------------
 
 function fmt(n) {
