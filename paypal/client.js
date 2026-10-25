@@ -14,6 +14,45 @@
 
 const SANDBOX_BASE = 'https://api-m.sandbox.paypal.com';
 
+/**
+ * The custom_id is the audit trail. Refuse to create an order without one.
+ *
+ * It has to be at most 255 characters (PayPal Orders v2 limit), so a caller passing
+ * something absurd gets a clear error rather than a rejected API call deep inside a
+ * request that has already been sent.
+ */
+/**
+ * Format an amount the way PayPal expects it for that currency.
+ *
+ * `toFixed(2)` is wrong for JPY and the other zero-decimal currencies — PayPal rejects
+ * "8000.00" for JPY, so a Japanese merchant's live demo would fail on the first order.
+ * This is the list PayPal documents; anything not in it uses two decimals.
+ */
+const ZERO_DECIMAL = new Set(['HUF', 'JPY', 'TWD']);
+const THREE_DECIMAL = new Set(['BHD', 'KWD', 'OMR']);
+
+export function formatAmount(amount, currency = 'USD') {
+  const code = String(currency || 'USD').toUpperCase();
+  const n = Number(amount);
+  if (!Number.isFinite(n)) throw new Error(`Cannot format a non-numeric amount: ${amount}`);
+  const digits = ZERO_DECIMAL.has(code) ? 0 : (THREE_DECIMAL.has(code) ? 3 : 2);
+  return n.toFixed(digits);
+}
+
+function requireCustomId(purchase) {
+  const id = purchase?.customId || purchase?.custom_id || null;
+  if (!id || !String(id).trim()) {
+    throw new Error(
+      'Refusing to create a PayPal order without a receipt: custom_id is the audit stamp. ' +
+      'Pass purchase.customId (e.g. "triad1:<hash>").'
+    );
+  }
+  if (String(id).length > 255) {
+    throw new Error(`custom_id is ${String(id).length} characters; PayPal Orders v2 allows 255.`);
+  }
+  return String(id);
+}
+
 export class PayPalClient {
   constructor(clientId, secret, { base = SANDBOX_BASE, mock = false } = {}) {
     this.clientId = clientId;
@@ -38,6 +77,18 @@ export class PayPalClient {
       throw new Error(
         `PayPal is half-configured: ${missing} is missing but its partner is set. ` +
         'Set both to use the sandbox, or neither to run in MOCK. Refusing to guess.'
+      );
+    }
+
+    // REQUIRE_LIVE=1 means "this deployment is supposed to be live, so refuse to start
+    // in MOCK". Without it, a typo in a hosting provider's environment variables demos a
+    // fake PayPal while the operator believes the sandbox is being exercised — and the
+    // mode badge, on a page nobody has loaded yet, cannot warn anyone. Failing at boot is
+    // the only place the mistake is still cheap.
+    if (!hasId && String(process.env.REQUIRE_LIVE || '').trim() === '1') {
+      throw new Error(
+        'REQUIRE_LIVE=1 but PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET are both unset. ' +
+        'Refusing to start in MOCK: this deployment is declared live.'
       );
     }
     return new PayPalClient(id, secret);
@@ -96,9 +147,13 @@ export class PayPalClient {
       intent: 'CAPTURE',
       purchase_units: [
         {
-          amount: { currency_code: currency, value: Number(purchase.amount).toFixed(2) },
+          amount: { currency_code: currency, value: formatAmount(purchase.amount, currency) },
           description: `${purchase.category}: ${purchase.reason}`.slice(0, 127),
-          custom_id: purchase.customId || purchase.id || `triad_${Date.now()}`,
+          // A receipt-less order is not a Tuesday order. The whole claim of the project is
+      // that the decision travels with the money, so an order without a decision hash is
+      // exactly what this code exists to prevent. Falling back to a timestamp let one
+      // through and quietly falsified the audit trail.
+      custom_id: requireCustomId(purchase),
         },
       ],
       payment_source: {
@@ -165,7 +220,7 @@ export class PayPalClient {
     const body = {
       note: note || 'Offer from the merchant.',
       offer_type: 'REFUND',
-      offer_amount: { currency_code: currency, value: Number(amount).toFixed(2) },
+      offer_amount: { currency_code: currency, value: formatAmount(amount, currency) },
     };
     return this._req('POST', `/v1/customer/disputes/${encodeURIComponent(disputeId)}/make-offer`,
                      body, `offer-${disputeId}`);
@@ -210,32 +265,116 @@ export class PayPalClient {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(`PayPal ${method} ${path} failed (${res.status}): ${JSON.stringify(data)}`);
+      // Carry the status and PayPal's issue code so callers can distinguish "you asked
+      // me to do something PayPal forbids" (422 ORDER_NOT_APPROVED) from "I am broken"
+      // (500). Collapsing both into a 500 made the demo look crashed when it was in fact
+      // correctly refusing an unapproved capture.
+      const issue = data?.details?.[0]?.issue || null;
+      throw Object.assign(
+        new Error(`PayPal ${method} ${path} failed (${res.status})${issue ? ' ' + issue : ''}: ${JSON.stringify(data)}`),
+        { status: res.status, issue, paypal: data }
+      );
     }
     return data;
   }
 
+  /**
+   * The mock is a state machine, not a stub that always says yes.
+   *
+   * A mock that returns COMPLETED for any capture id proves nothing — it would let an
+   * unapproved order be captured, which is precisely the behaviour the real API forbids
+   * and the project claims to prevent. Each mock order now moves
+   * CREATED -> APPROVED -> COMPLETED, and a capture before approval fails with 422, the
+   * same status PayPal returns. "A human must approve first" is therefore demonstrated
+   * even with no credentials.
+   */
   _mockResponse(method, path, body) {
-    const id = `MOCK-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-    if (path.includes('/capture')) {
+    this._mockOrders = this._mockOrders || new Map();
+
+    // POST /v2/checkout/orders
+    if (method === 'POST' && /\/v2\/checkout\/orders$/.test(path)) {
+      const id = `MOCK-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+      const customId = body?.purchase_units?.[0]?.custom_id ?? null;
+      const order = { id, status: 'CREATED', customId, captured: false };
+      this._mockOrders.set(id, order);
+      return {
+        id,
+        status: 'PAYER_ACTION_REQUIRED',
+        mock: true,
+        purchase_units: [{ custom_id: customId }],
+        links: [
+          { rel: 'payer-action', href: `https://www.sandbox.paypal.com/checkoutnow?token=${id}` },
+          { rel: 'self', href: `${this.base}${path}` },
+        ],
+      };
+    }
+
+    // POST /v2/checkout/orders/{id}/capture
+    if (method === 'POST' && path.includes('/capture')) {
       const orderId = path.split('/')[4];
+      const order = this._mockOrders.get(orderId);
+      if (!order) {
+        throw Object.assign(new Error(`PayPal POST ${path} failed (404): unknown order ${orderId}`), { status: 404 });
+      }
+      if (order.status !== 'APPROVED') {
+        throw Object.assign(
+          new Error(
+            `PayPal POST ${path} failed (422): order ${orderId} is ${order.status}, ` +
+            'not APPROVED. A human must approve before it can be captured.'
+          ),
+          { status: 422 }
+        );
+      }
+      order.status = 'COMPLETED';
+      order.captured = true;
+      const captureId = `CAP-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
       return {
         id: orderId,
         status: 'COMPLETED',
         mock: true,
-        purchase_units: [{ payments: { captures: [{ id, status: 'COMPLETED' }] } }],
+        purchase_units: [{ custom_id: order.customId, payments: { captures: [{ id: captureId, status: 'COMPLETED' }] } }],
       };
     }
-    // create / get order
-    return {
-      id,
-      status: method === 'POST' ? 'CREATED' : 'APPROVED',
-      mock: true,
-      purchase_units: [{ custom_id: body?.purchase_units?.[0]?.custom_id ?? null }],
-      links: [
-        { rel: 'approve', href: `https://www.sandbox.paypal.com/checkoutnow?token=${id}` },
-        { rel: 'self', href: `${this.base}${path}` },
-      ],
-    };
+
+    // GET /v2/checkout/orders/{id}
+    if (method === 'GET' && /\/v2\/checkout\/orders\/[^/]+$/.test(path)) {
+      const orderId = path.split('/').pop();
+      const order = this._mockOrders.get(orderId);
+      if (!order) {
+        throw Object.assign(new Error(`PayPal GET ${path} failed (404): unknown order ${orderId}`), { status: 404 });
+      }
+      const links = [{ rel: 'self', href: `${this.base}${path}` }];
+      if (order.status === 'CREATED') {
+        links.unshift({ rel: 'payer-action', href: `https://www.sandbox.paypal.com/checkoutnow?token=${orderId}` });
+      }
+      return {
+        id: order.id,
+        status: order.status,
+        mock: true,
+        purchase_units: [{ custom_id: order.customId }],
+        links,
+      };
+    }
+
+    // Disputes: nothing stored locally, so report an empty list rather than inventing one.
+    if (path.includes('/customer/disputes')) {
+      if (method === 'GET' && /\/customer\/disputes\?/.test(path)) return { items: [], mock: true };
+      if (method === 'GET') {
+        throw Object.assign(new Error(`PayPal GET ${path} failed (404): no mock dispute`), { status: 404 });
+      }
+      return { mock: true, status: 'OK' };
+    }
+
+    const id = `MOCK-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+    return { id, status: 'CREATED', mock: true, links: [{ rel: 'self', href: `${this.base}${path}` }] };
+  }
+
+  /** Mock-only: approve an order, standing in for the buyer tapping "Pay". */
+  _mockApprove(orderId) {
+    this._mockOrders = this._mockOrders || new Map();
+    const order = this._mockOrders.get(orderId);
+    if (!order) throw new Error(`No mock order ${orderId}`);
+    order.status = 'APPROVED';
+    return order;
   }
 }

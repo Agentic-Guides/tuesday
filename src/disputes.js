@@ -60,8 +60,8 @@ const EVIDENCE_LABELS = {
   message: 'Buyer message text',
 };
 
-function ev(id, kind, ok, detail, weight = 1) {
-  return { id, kind, ok, detail, weight, label: EVIDENCE_LABELS[kind] || kind };
+function ev(id, kind, ok, detail, weight = 1, extra = null) {
+  return { id, kind, ok, detail, weight, label: EVIDENCE_LABELS[kind] || kind, ...(extra || {}) };
 }
 
 /**
@@ -70,10 +70,38 @@ function ev(id, kind, ok, detail, weight = 1) {
  * `dispute` is the PayPal dispute object (or a sample shaped like one).
  * `order` is what the merchant holds for the original transaction, if anything.
  */
+export const DISPUTE_GATE = {
+  AUTO_LIMIT_USD: 50,
+  DEADLINE_WARN_HOURS: 24,
+  // The ceiling is expressed in USD, but disputes arrive in whatever the merchant sells
+  // in. Comparing a JPY amount against a USD number is not a rounding error — ¥8,000 is
+  // about $50, so a limit applied to the raw number would wave through roughly 150x the
+  // intended exposure. These are deliberately coarse, fixed conversion rates rather than
+  // a live feed: a stale rate must never move money, and a gate that cannot be asked to
+  // fetch anything at decision time is a gate that cannot fail open.
+  FX_TO_USD: {
+    USD: 1, EUR: 1.08, GBP: 1.27, CAD: 0.73, AUD: 0.65, JPY: 0.0064,
+    KRW: 0.00072, CNY: 0.14, HKD: 0.128, SGD: 0.74, TWD: 0.031,
+    SEK: 0.095, NOK: 0.092, DKK: 0.145, CHF: 1.12, MXN: 0.05,
+    BRL: 0.18, INR: 0.012, NZD: 0.60, PHP: 0.017, THB: 0.028,
+  },
+};
+
+/** Convert a dispute amount to USD for the ceiling comparison. Unknown currency = 0 trust. */
+export function toUsd(amount, currency) {
+  const code = String(currency || 'USD').toUpperCase();
+  const rate = DISPUTE_GATE.FX_TO_USD[code];
+  // An unknown currency is treated as if the amount were enormous, so it needs a human.
+  if (rate == null) return { usd: Number.POSITIVE_INFINITY, known: false, code };
+  return { usd: Number(amount) * rate, known: true, code };
+}
+
 export function collectEvidence(dispute, order = null) {
   const items = [];
   const reason = dispute?.dispute_reason || dispute?.reason || DISPUTE_REASON.OTHER;
   const amount = Number(dispute?.dispute_amount?.value ?? dispute?.amount ?? 0);
+  const currency = String(dispute?.dispute_amount?.currency_code || dispute?.currency || 'USD').toUpperCase();
+  const fx = toUsd(amount, currency);
   const txns = dispute?.disputed_transactions || [];
   const txn = txns[0] || {};
 
@@ -94,13 +122,31 @@ export function collectEvidence(dispute, order = null) {
       : 'No completed capture is on record for this transaction.',
     captured ? 1 : 0.2));
 
-  // E3 — the audit stamp. This is the part no other project has.
+  // E3 — the audit stamp. This is the part no other project has, so it has to be true.
+  //
+  // The stamp existing is not the claim. The claim is that it agrees with our ledger, and
+  // an earlier version asserted exactly that while comparing nothing. The comparison runs
+  // here: `ledgerHash` is the hash of the decision we recorded, and the stamp in the
+  // payment has to contain it. `triad1:` stamps carry the 16-character form; a `triad2:`
+  // stamp would carry the full SHA-256, so the check is a prefix match on the hash that
+  // the ledger holds.
   const stamp = order?.custom_id || order?.customId || null;
-  items.push(ev('E3', 'custom_id', Boolean(stamp),
-    stamp
-      ? `The decision hash ${stamp} was stamped into custom_id at settlement and matches our ledger.`
-      : 'No decision hash was stamped into the payment record.',
-    stamp ? 1 : 0));
+  const ledgerHash = order?.ledger_hash || order?.ledgerHash || null;
+  const stampHash = stamp && stamp.includes(':') ? stamp.split(':').slice(1).join(':') : stamp;
+  const stampVerified = Boolean(
+    stamp && ledgerHash && stampHash && String(stampHash).toLowerCase().startsWith(String(ledgerHash).toLowerCase())
+  );
+  const stampUnchecked = Boolean(stamp && !ledgerHash);
+  items.push(ev('E3', 'custom_id', stampVerified,
+    stampVerified
+      ? `The decision hash ${stamp} matches the ledger entry (${ledgerHash}).`
+      : (stampUnchecked
+          ? `A stamp ${stamp} is present, but there is no ledger entry to compare it against.`
+          : (stamp
+              ? `The stamp ${stamp} does NOT match the ledger entry (${ledgerHash || 'none'}).`
+              : 'No decision hash was stamped into the payment record.')),
+    stampVerified ? 1 : (stampUnchecked ? 0.4 : 0),
+    { verified: stampVerified, unchecked: stampUnchecked }));
 
   // E4/E5 — tracking and delivery. Absent for digital goods, so absence is not guilt.
   const tracking = order?.tracking || null;
@@ -116,12 +162,26 @@ export function collectEvidence(dispute, order = null) {
     delivered ? 1 : 0.1));
 
   // E6 — was it delivered where the buyer said it should go?
+  //
+  // Three states, not two. `address_match` is `true`, `false`, or absent, and absent is
+  // not the same as false: an order whose address cannot be compared is unknown, and
+  // treating unknown as a mismatch invented a failure the evidence did not contain. The
+  // buyer advocate used to say "does NOT match" about an order nobody had compared.
   const addrMatch = order?.address_match;
-  items.push(ev('E6', 'address', addrMatch === true,
-    addrMatch === true ? 'The delivery address matches the address on the order.'
-      : addrMatch === false ? 'The delivery address does NOT match the address on the order.'
-      : 'The delivery address could not be compared.',
-    addrMatch === true ? 1 : (addrMatch === false ? 0.8 : 0.3)));
+  const addrKnown = addrMatch === true || addrMatch === false;
+  // `ok` here means "compared, and it does not contradict the merchant", which is what
+  // the required-evidence check needs. `known` stays available to the advocates so they
+  // can say "could not compare" rather than "does not match".
+  items.push(ev('E6', 'address', addrKnown && addrMatch !== false,
+    addrMatch === true
+      ? 'The delivery address matches the address on the order.'
+      : (addrMatch === false
+          ? 'The delivery address does NOT match the address on the order.'
+          : 'The delivery address could not be compared with the order.'),
+    addrMatch === true ? 1 : (addrMatch === false ? 0 : 0.4),
+    // `match` must only mean "compared and different". When the address was never
+    // compared, match is null so a caller cannot mistake unknown for a mismatch.
+    { known: addrKnown, match: addrKnown ? addrMatch === true : null }));
 
   // E7 — history with this buyer.
   const prior = Number(order?.prior_orders ?? dispute?.buyer_prior_orders ?? 0);
@@ -141,15 +201,27 @@ export function collectEvidence(dispute, order = null) {
     msg ? msg.slice(0, 300) : 'The buyer left no message.',
     0.5));
 
-  return { reason, amount, items };
+  return { reason, amount, currency, fx, items };
 }
 
 /** Evidence strong enough that "contest" has something to stand on. */
+
 function requiredEvidenceFor(reason) {
   if (reason === DISPUTE_REASON.NOT_RECEIVED) return ['E4', 'E5'];      // tracking + delivery
   if (reason === DISPUTE_REASON.NOT_AS_DESCRIBED) return ['E1', 'E3'];  // order + what was decided
-  if (reason === DISPUTE_REASON.UNAUTHORIZED) return ['E1', 'E2'];      // order + capture
-  if (reason === DISPUTE_REASON.BILLING_ERROR) return ['E1', 'E2'];
+
+  // An "I did not authorise this" claim is about the buyer's identity, and the order and
+  // capture say nothing about it: a dispute only exists against a settled transaction, so
+  // E1 and E2 are essentially always present. Requiring them alone let almost every
+  // unauthorised-payment claim clear D1 without the desk ever examining whether the person
+  // who paid was the person who owns the account. E6 (the delivery address compared with
+  // the order) and E7 (prior settled orders from this buyer) are the cheap evidence of
+  // identity that a merchant actually holds, so they are now required. Both must be
+  // *present*, not merely cited — D1 tests `ok`, and E6 is three-state, so an address
+  // that could not be compared counts as absent rather than as a mismatch.
+  if (reason === DISPUTE_REASON.UNAUTHORIZED) return ['E1', 'E2', 'E6', 'E7'];
+
+  if (reason === DISPUTE_REASON.BILLING_ERROR) return ['E1', 'E2', 'E8'];  // + the policy in force
   return ['E1'];
 }
 
@@ -219,8 +291,11 @@ export function deterministicDisputeReasoning(role, { reason, amount, items }) {
       reasons.push(`Required evidence is missing: ${missing.join(', ')}.`);
       missing.forEach((m) => cites.push(m));
     }
-    if (e6?.ok === false) {
+    if (e6?.match === false) {
       reasons.push('The delivery address does not match the address on the order (E6).');
+      cites.push('E6');
+    } else if (e6 && e6.known === false) {
+      reasons.push('The delivery address cannot be compared with the order (E6).');
       cites.push('E6');
     }
     if (!e5?.ok) {
@@ -235,7 +310,10 @@ export function deterministicDisputeReasoning(role, { reason, amount, items }) {
       reasons.push('The merchant appears to be able to evidence this transaction.');
       cites.push('E1');
     }
-    return mkArg(role, DISPUTE_ACTION.CONTEST, reasons, cites, 0.55);
+    // The buyer advocate does not want the merchant to CONTEST — that is the opposite of
+    // what the buyer is asking for. Its job is to argue for the claim, so its action is
+    // the one the buyer would choose. It is advisory only: the arbiter decides.
+    return mkArg(role, DISPUTE_ACTION.REFUND, reasons, cites, 0.55);
   }
 
   // arbiter
@@ -244,7 +322,8 @@ export function deterministicDisputeReasoning(role, { reason, amount, items }) {
   let action;
   let confidence;
 
-  if (missing.length === 0 && e5?.ok && e6?.ok !== false) {
+  // E6 unknown is not E6 failed: an order nobody compared must not block a contest.
+  if (missing.length === 0 && e5?.ok && e6?.match !== false) {
     action = DISPUTE_ACTION.CONTEST;
     reasons.push(`Every required item of evidence is present for a "${reason}" claim, and delivery is confirmed (${missing.length ? '' : required.join(', ')}).`);
     required.forEach((r) => cites.push(r));
@@ -279,10 +358,7 @@ export function deterministicDisputeReasoning(role, { reason, amount, items }) {
  * D4 deadline               — if it is too close and nobody is around, notify, never act
  */
 
-export const DISPUTE_GATE = {
-  AUTO_LIMIT_USD: 50,
-  DEADLINE_WARN_HOURS: 24,
-};
+
 
 /**
  * Run the gate over a proposed action.
@@ -299,20 +375,39 @@ export function runDisputeGate({ action, evidence, arguments: args, deadlineHour
   const required = requiredEvidenceFor(evidence.reason);
 
   // D1 — evidence sufficiency.
-  if (action === DISPUTE_ACTION.CONTEST) {
-    const missing = required.filter((id) => !okIds.has(id));
-    if (missing.length === 0) passed.push('D1_evidence_sufficient');
-    else failed.push(`D1_missing_${missing.join('_')}`);
+  //
+  // This used to be checked only when the proposed action was CONTEST, on the theory that
+  // the other actions need no proof of anything. That was wrong in a way that made the
+  // rule unobservable: with the required evidence missing, the deterministic arbiter
+  // proposes ESCALATE (never CONTEST), so D1 was skipped precisely in the case it exists
+  // to catch. A missing-evidence condition is a fact about the dispute, not about the
+  // proposed action, so it is now reported regardless of what was proposed. What the
+  // action changes is only whether the missing evidence *blocks* (a contest) or merely
+  // *requires a human* (anything else).
+  const missing = required.filter((id) => !okIds.has(id));
+  if (missing.length === 0) {
+    passed.push('D1_evidence_sufficient');
+  } else if (action === DISPUTE_ACTION.CONTEST) {
+    failed.push(`D1_missing_${missing.join('_')}`);
   } else {
-    passed.push('D1_not_contesting');
+    requiresHuman = true;
+    passed.push(`D1_missing_${missing.join('_')}_requires_human`);
   }
 
-  // D2 — amount ceiling.
-  if (evidence.amount > DISPUTE_GATE.AUTO_LIMIT_USD) {
+  // D2 — amount ceiling, compared in USD.
+  //
+  // The limit is $50, but a JPY dispute arrives as "8000". Comparing the raw number
+  // would put 8,000 yen (~$51) on the wrong side of the line by a factor of about 150,
+  // and an unknown currency would be silently read as dollars. Both now go to a human.
+  const fx = evidence.fx || toUsd(evidence.amount, evidence.currency);
+  if (!fx.known) {
     requiresHuman = true;
-    passed.push(`D2_requires_human_over_${DISPUTE_GATE.AUTO_LIMIT_USD}`);
+    passed.push(`D2_unknown_currency_${fx.code}_requires_human`);
+  } else if (fx.usd > DISPUTE_GATE.AUTO_LIMIT_USD) {
+    requiresHuman = true;
+    passed.push(`D2_requires_human_over_${DISPUTE_GATE.AUTO_LIMIT_USD}_usd`);
   } else {
-    passed.push('D2_within_auto_limit');
+    passed.push(`D2_within_auto_limit_${fx.code}_${Math.round(fx.usd)}usd`);
   }
 
   // D3 — every citation must be a real evidence ID, and no argument may be uncited.
@@ -451,6 +546,8 @@ export function finaliseDispute({ dispute, evidence, arguments: argsIn, deadline
     disputeId: dispute?.dispute_id || dispute?.id || null,
     reason: evidence.reason,
     amount: evidence.amount,
+    currency: evidence.currency || 'USD',
+    amountUsd: evidence.fx ? Number(evidence.fx.usd.toFixed(2)) : null,
     proposed,
     action,
     downgradedFrom,

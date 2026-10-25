@@ -156,6 +156,15 @@ export function deterministicReason(agent, purchase) {
         reasons.push(`Within budget: ${fmt(amount)} vs remaining ${fmt(remaining)}.`);
         verdict = 'for';
       }
+    } else {
+      // No budget was supplied, so there is nothing to audit the price against. That is
+      // not the same as a refusal, and it must not be silent: the auditor's verdict used
+      // to default to 'against' with an empty reasons list, which meant a purchase was
+      // rejected by an agent that never said why. An audit that cannot state its grounds
+      // is not an audit, so the verdict here is neutral — the auditor abstains rather
+      // than vetoes — and the abstention is named.
+      reasons.push('No monthly budget was supplied, so the price cannot be audited against one.');
+      verdict = 'neutral';
     }
 
     // ★ Multi-gate audit — adapted from the quant research rejection engine.

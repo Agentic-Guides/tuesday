@@ -219,6 +219,16 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req); return json(res, 200, await triad.triadCaptureOrder(body)); }
     catch (e) {
       if (e instanceof BadRequest) return json(res, 400, { error: e.message });
+      // PayPal refusing a capture because the payer has not approved yet is a correct
+      // answer, not a crash. Pass its status and issue code through so the UI can say
+      // "a human must approve first" rather than "internal error".
+      if (e && e.status) {
+        console.error('[api] capture refused:', e.issue || e.status);
+        return json(res, e.status, {
+          ok: false, error: 'paypal_refused', issue: e.issue || null,
+          status: e.status, message: String(e.message).slice(0, 400),
+        });
+      }
       console.error('[api] handler failed:', e && e.message ? e.message : e);
       return json(res, 500, { error: 'internal error' });
     }

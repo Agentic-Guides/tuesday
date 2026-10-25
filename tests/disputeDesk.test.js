@@ -214,5 +214,74 @@ check('the buyer advocate may still point at the gap',
 check('the deterministic advocate never cites a gap',
   deterministicDisputeReasoning('advocate', evNoTracking).cites.every((id) => id !== 'E4'));
 
+// ---------------------------------------------------------------------------
+// 11-13. Identity evidence, three-state addresses, and the D1 scope bug.
+// ---------------------------------------------------------------------------
+console.log('\n=== 11. An unauthorised-payment claim needs identity evidence ===');
+
+const unauthOrder = {
+  id: 'ORDER-U', status: 'COMPLETED', captured: true,
+  custom_id: 'triad1:3e1a31b9ea301bd2', ledger_hash: '3e1a31b9ea301bd2',
+  tracking: { number: '1Z9', status: 'DELIVERED' },
+  address_match: true, prior_orders: 4, refund_policy: '30-day returns',
+};
+const unauth = (o) => ({
+  dispute_id: 'D-U', dispute_reason: DISPUTE_REASON.UNAUTHORIZED,
+  dispute_amount: { currency_code: 'USD', value: '42.00' },
+  disputed_transactions: [{ seller_transaction_id: 'TXN-U' }],
+  buyer_message: 'I never authorised this payment.',
+});
+const finU = (order) => {
+  const ev = collectEvidence(unauth(), order);
+  return finaliseDispute({ dispute: unauth(), evidence: ev, arguments: trio(ev), deadlineHours: 96 });
+};
+
+check('full identity evidence clears D1', finU(unauthOrder).gate.passed.includes('D1_evidence_sufficient'));
+check('a mismatched address fails D1',
+  finU({ ...unauthOrder, address_match: false }).gate.passed.some((g) => /D1_missing.*E6/.test(g)));
+check('an address that could not be compared fails D1 too',
+  finU({ ...unauthOrder, address_match: undefined }).gate.passed.some((g) => /D1_missing.*E6/.test(g)));
+check('no prior orders fails D1 on E7',
+  finU({ ...unauthOrder, prior_orders: 0 }).gate.passed.some((g) => /D1_missing.*E7/.test(g)));
+check('missing identity evidence requires a human', finU({ ...unauthOrder, prior_orders: 0 }).requiresHuman === true);
+check('missing identity evidence never auto-executes', finU({ ...unauthOrder, prior_orders: 0 }).autoExecute === false);
+
+const billing = { ...unauth(), dispute_reason: DISPUTE_REASON.BILLING_ERROR };
+const evBno = collectEvidence(billing, { ...unauthOrder, refund_policy: null });
+check('a billing-error claim without the policy fails D1 on E8',
+  finaliseDispute({ dispute: billing, evidence: evBno, arguments: trio(evBno), deadlineHours: 96 })
+    .gate.passed.some((g) => /D1_missing.*E8/.test(g)));
+
+console.log('\n=== 12. An address has three states, not two ===');
+
+const e6 = (am) => collectEvidence(unauth(), { ...unauthOrder, address_match: am }).items.find((i) => i.id === 'E6');
+check('a match is ok / known / match', e6(true).ok === true && e6(true).known === true && e6(true).match === true);
+check('a mismatch is not ok, but known', e6(false).ok === false && e6(false).known === true && e6(false).match === false);
+check('an uncompared address is not ok, and not known either',
+  e6(undefined).ok === false && e6(undefined).known === false && e6(undefined).match === null);
+check('an uncompared address never reads as a mismatch', !/NOT match/.test(e6(undefined).detail));
+
+// ---------------------------------------------------------------------------
+console.log('\n=== 13. D1 is a fact about the dispute, not about the proposed action ===');
+
+// The deterministic arbiter proposes ESCALATE when evidence is missing, so a D1 that only
+// ran for CONTEST was skipped in exactly the case it exists to catch.
+const evGap = collectEvidence(unauth(), { ...unauthOrder, prior_orders: 0 });
+const fGapIdentity = finaliseDispute({
+  dispute: unauth(), evidence: evGap, arguments: trio(evGap), deadlineHours: 96,
+});
+check('a non-CONTEST action still reports the missing evidence',
+  [...fGapIdentity.gate.passed, ...fGapIdentity.gate.failed].some((g) => /D1_missing_E7/.test(g)),
+  fGapIdentity.gate.passed.join(','));
+check('the missing evidence is not silent: it requires a human', fGapIdentity.requiresHuman === true);
+
+// A contest with the same gap is still refused outright.
+const forcedContest = finaliseDispute({
+  dispute: unauth(), evidence: evGap, deadlineHours: 96,
+  arguments: { ...trio(evGap), arbiter: { ...trio(evGap).arbiter, action: DISPUTE_ACTION.CONTEST, cites: ['E1'], parsed: true } },
+});
+check('a contest with the same gap is still blocked', forcedContest.gate.failed.some((g) => /D1_missing/.test(g)));
+check('and it escalates rather than settles', forcedContest.action === DISPUTE_ACTION.ESCALATE, forcedContest.action);
+
 console.log(`\n${fail === 0 ? '✅' : '❌'} disputeDesk: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

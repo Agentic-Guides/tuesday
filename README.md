@@ -344,6 +344,17 @@ collision-resistant tamper evidence under adversarial conditions, use the full
 `receipt.hash` — it is stored in the receipt and in the ledger; only the stamped
 copy is truncated.
 
+What the verify card actually compares, precisely: it reads the order back from PayPal
+(`GET /v2/checkout/orders/{id}`), takes the 16 hex characters after `triad1:` in
+`custom_id`, recomputes the ledger entry's full SHA-256, and compares the **first 16
+characters** of that digest with the stamped 16. It does not compare the full 64
+characters against PayPal, because PayPal never held them. So "tamper-evident" here means:
+changing the ledger entry changes its full hash, which changes the first 16 characters,
+which no longer equals the stamp in the payment record. Forging a *different* ledger entry
+whose full hash happens to share those 16 characters requires a second-preimage search of
+about 2^64 — out of reach for this threat model, but 2^64 rather than 2^256, which is the
+honest way to state it.
+
 **Who decides what — the split that makes the LLMs load-bearing.**
 
 The obvious question is: if the gates decide, are the models decoration? No, and the
@@ -545,12 +556,18 @@ Five rules, each proven in `tests/disputeDesk.test.js`:
 
 | Rule | What it stops |
 |---|---|
-| **D1** evidence sufficiency | `CONTEST` is refused when the items that reason requires are missing — tracking and delivery for a non-receipt claim, order and capture for an unauthorised-payment claim |
+| **D1** evidence sufficiency | the items that claim reason requires must be present. `CONTEST` is refused outright without them; any other action is forced to a human and the missing items are named. A non-receipt claim needs tracking and delivery; an unauthorised-payment claim needs order, capture, **a comparable delivery address and prior settled orders** — because a dispute only exists against a settled transaction, so order and capture prove nothing about who paid |
 | **D2** amount ceiling | above $50, only a human may authorise |
 | **D3** citation check | a citation must be evidence that is *present*, not merely an ID that exists. Citing the missing delivery record as proof of delivery is the same lie as inventing an ID. The buyer advocate is exempt — pointing at the gap is its job |
 | **D4** deadline | a looming deadline forces a human. It never creates authority to act |
 | **D5** no free surrender | `ACCEPT` while every required item is present and delivery is confirmed is a model being agreeable, not deciding |
 | **D6** money waits | `REFUND`, `OFFER_PARTIAL` and `ACCEPT` send money to the buyer, so none of them ever auto-execute, at any amount. Only `CONTEST` — which submits evidence and commits nothing — runs inside the auto limit |
+
+**What runs without a human, exactly.** Only `CONTEST`, and only at or below $50 USD
+after conversion, and only when D1 is satisfied. `CONTEST` submits evidence and commits no
+money. Every action that moves money to the buyer — `REFUND`, `OFFER_PARTIAL`, `ACCEPT` —
+requires a human at any amount, in any currency (gate D6). There is no amount small enough
+to refund automatically.
 
 **When the gate refuses the proposed action, the desk escalates to a human and to PayPal.
 It never settles.** An earlier version fell back to "refund if small, else offer partial",
