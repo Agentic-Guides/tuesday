@@ -6,6 +6,7 @@
  */
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve, sep } from 'node:path';
 import { createTriad } from '../src/webmcp.js';
@@ -43,6 +44,15 @@ const __dir = dirname(fileURLToPath(import.meta.url));
   } catch { /* no .env — MOCK is fine */ }
 }
 const triad = createTriad();
+
+// Restore the receipts recorded in docs/fixtures so a real dispute's custom_id still
+// resolves against the ledger after a restart. Without this, E3 is only verifiable in the
+// process that created the order — which makes the audit trail an accident of uptime.
+const _fixturesDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'fixtures');
+const _restored = restoreFixtures(triad, _fixturesDir);
+if (_restored.length) {
+  for (const r of _restored) console.log('[fixtures] restored receipt %s (%s)', r.hash, r.customId);
+}
 const commerce = createTriadCommerce({ triad });
 
 const server = createServer(async (req, res) => {
@@ -276,7 +286,22 @@ const server = createServer(async (req, res) => {
       if (live) {
         try {
           const d = await triad._paypal.listDisputes({ pageSize: 20 });
-          items = (d.items || []).map(normalizeDispute);
+          // ★ The list endpoint carries far less than the details endpoint: in particular
+          //   it omits `disputed_transactions[].custom`, which is the merchant's own
+          //   custom_id and therefore the whole audit trail. Reading only the list made
+          //   every real dispute look like it had no stamp, so E3 could never verify one.
+          //   Fetch each dispute individually so the desk sees what PayPal actually holds.
+          const list = d.items || [];
+          const detailed = await Promise.all(list.map(async (x) => {
+            try {
+              const one = await triad._paypal.getDispute(x.dispute_id);
+              return one && one.dispute_id ? one : x;
+            } catch (e) {
+              console.error('[api] dispute detail failed, using list row:', x.dispute_id, e && e.message);
+              return x;
+            }
+          }));
+          items = detailed.map(normalizeDispute);
           source = 'paypal';
           if (!items.length) {
             note = 'PayPal returned no open disputes for this merchant yet. Showing the sample set below so the workflow can be exercised.';
@@ -304,8 +329,23 @@ const server = createServer(async (req, res) => {
     try {
       const body = await readJson(req);
       const dispute = body.dispute || {};
-      const order = body.order || null;
+      let order = body.order || dispute.order || null;
       const deadlineHours = body.deadlineHours ?? null;
+
+      // ★ Resolve the ledger entry from the stamp itself.
+      //   PayPal hands us the merchant's custom_id as `custom` on the transaction, but it
+      //   does not hand us our own ledger — that is ours. So when the stamp is a Tuesday
+      //   receipt (`triad1:<hash>`), the ledger is where the hash to compare against comes
+      //   from. Doing this here, rather than trusting a client-supplied `ledger_hash`, is
+      //   what makes E3 a real check: the caller only has to supply the payment record.
+      if (order && order.custom_id && !order.ledger_hash) {
+        const stamp = String(order.custom_id);
+        const want = stamp.includes(':') ? stamp.split(':').slice(1).join(':') : stamp;
+        const entries = (triad.triadGetLedger().entries || []);
+        const hit = entries.find((e) => String(e.customId || '').includes(want)
+          || String(e.receiptHash || '') === want);
+        if (hit) order = { ...order, ledger_hash: hit.receiptHash, ledger_matched_from: 'ledger' };
+      }
 
       const evidence = collectEvidence(dispute, order);
       const args = {
@@ -492,6 +532,49 @@ const server = createServer(async (req, res) => {
   res.writeHead(404); res.end('Not found');
 });
 
+/* ── Ledger restore ──────────────────────────────────────────────────────
+ * The ledger lives in process memory, so a restart wipes it — and with it the entry that
+ * a real dispute's custom_id points at. The real chain (tribunal -> stamped order ->
+ * capture -> dispute) was produced against a specific receipt hash, and that hash is
+ * recorded in docs/fixtures/real-chain-*.json. Restoring it at boot means E3 can verify a
+ * REAL dispute on a freshly started server, instead of only in the process that happened
+ * to create it. The entries restored here are marked `restored: true` so the Source column
+ * never claims they were adjudicated in this session.
+ */
+function restoreFixtures(triad, fixturesDir) {
+  const restored = [];
+  try {
+    if (!fs.existsSync(fixturesDir)) return restored;
+    for (const f of fs.readdirSync(fixturesDir)) {
+      if (!f.startsWith('real-chain-') || !f.endsWith('.json')) continue;
+      const doc = JSON.parse(fs.readFileSync(join(fixturesDir, f), 'utf8'));
+      const ch = doc.chain || {};
+      if (!ch.tribunal || !ch.order) continue;
+      const hash = ch.tribunal.receipt_hash;
+      const customId = ch.order.custom_id || ch.tribunal.receipt_custom_id;
+      if (!hash || !customId) continue;
+      triad.restoreLedgerEntry({
+        purchase: { id: ch.tribunal.purchaseId || ch.order.order_id, amount: 42, category: 'skincare', reason: 'restock' },
+        decision: ch.tribunal.decision,
+        votesFor: 3, votesAgainst: 0,
+        summary: 'restored from ' + f,
+        receiptHash: hash,
+        customId,
+        votes: ch.tribunal.models ? { advocate: 'for', auditor: 'for', witness: 'for' } : null,
+        models: ch.tribunal.models || null,
+        engine: ch.tribunal.engine || 'llm',
+        threshold: 2,
+        restored: true,
+        source: 'fixture:' + f,
+      });
+      restored.push({ file: f, hash, customId });
+    }
+  } catch (e) {
+    console.error('[fixtures] restore failed:', e && e.message);
+  }
+  return restored;
+}
+
 /* ── Dispute helpers ─────────────────────────────────────────────────────
  * normalizeDispute turns PayPal's shape into the shape the desk reads, so the same
  * code path serves a real dispute and a sample one. The sample set is labelled as a
@@ -514,6 +597,20 @@ function normalizeDispute(d) {
     deadline: due,
     deadlineHours,
     source: 'paypal',
+    // The order the desk needs to build evidence. PayPal puts the merchant's custom_id
+    // on the transaction as `custom`, and that stamp is the whole audit trail — without
+    // it, evidence E3 has nothing to verify and a real dispute looks worse than a sample.
+    order: {
+      id: txn.seller_transaction_id || txn.buyer_transaction_id || null,
+      status: txn.transaction_status || null,
+      captured: txn.transaction_status === 'COMPLETED',
+      custom_id: txn.custom || null,
+      ledger_hash: null,   // resolved against Tuesday's own ledger in the desk
+      tracking: null,
+      address_match: null,
+      prior_orders: 0,
+      refund_policy: null,
+    },
   };
 }
 

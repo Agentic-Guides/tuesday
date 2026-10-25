@@ -331,6 +331,39 @@ export function createTriad({ runner, paypal } = {}) {
     return { ok: capture.status === 'COMPLETED', capture, mode: _paypal.mode };
   }
 
+  /**
+   * Put a ledger entry back, for a chain that was produced in an earlier process.
+   *
+   * The ledger is in memory, so restarting the server erases the entry a real PayPal
+   * order's custom_id points at — and then E3 correctly reports "no ledger entry to
+   * compare it against" for a dispute that genuinely was authorised here. Restoring the
+   * recorded receipt (from docs/fixtures) makes the audit trail survive a restart, which
+   * is the whole point of an audit trail. The entry is marked `restored` so the ledger's
+   * Source column never presents it as something adjudicated in this session.
+   */
+  function restoreLedgerEntry(entry) {
+    if (!entry || !entry.receiptHash) return { ok: false, error: 'receiptHash required' };
+    const exists = ledger.some((e) => e.receiptHash === entry.receiptHash || e.customId === entry.customId);
+    if (exists) return { ok: true, skipped: 'already present' };
+    ledger.push({
+      at: entry.at || new Date().toISOString(),
+      purchase: entry.purchase || null,
+      decision: entry.decision || 'APPROVED',
+      votesFor: entry.votesFor ?? 3,
+      votesAgainst: entry.votesAgainst ?? 0,
+      summary: entry.summary || 'restored',
+      receiptHash: entry.receiptHash,
+      customId: entry.customId || `triad1:${entry.receiptHash}`,
+      votes: entry.votes || null,
+      models: entry.models || null,
+      engine: entry.engine || 'llm',
+      threshold: entry.threshold ?? 2,
+      restored: true,
+      source: entry.source || 'fixture',
+    });
+    return { ok: true, restored: 1 };
+  }
+
   function triadGetLedger() {
     return { count: ledger.length, entries: ledger };
   }
@@ -341,6 +374,7 @@ export function createTriad({ runner, paypal } = {}) {
     triadCaptureOrder,
     triadVerifyReceipt,
     triadGetLedger,
+    restoreLedgerEntry,
     _runner,
     _paypal,
     ledger,
