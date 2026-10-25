@@ -65,12 +65,36 @@ const triad = createTriad();
   const r1 = await triad.triadAdjudicate({ amount: 45, category: 'books', reason: 'study', monthlyBudget: 500, spentThisMonth: 50 });
   show('Adjudication result', { decision: r1.decision, engine: r1.engine, paypalMode: r1.paypalMode, summary: r1.dissentMap?.summary ?? 'consensus' });
 
-  // If approved, create + capture order
+  // If approved, create the order, prove it cannot be captured before approval, then
+  // approve and capture. The mock is a state machine (CREATED -> APPROVED -> COMPLETED),
+  // so an unapproved capture fails with 422 exactly as the live sandbox does. That makes
+  // "a human must approve first" demonstrable with no credentials at all — which is the
+  // point, and is why this test asserts the refusal instead of skipping past it.
   if (r1.decision === DECISION.APPROVED || r1.decision === DECISION.CONDITIONAL) {
-    const o = await triad.triadCreateOrder({ purchaseId: r1.purchase.id, returnUrl: 'https://example.com/return' });
+    const o = await triad.triadCreateOrder({ purchaseId: r1.purchase.id, returnUrl: 'http://localhost:8787/return' });
     show('PayPal order created', o);
-    const c = await triad.triadCaptureOrder({ orderId: o.orderId });
-    show('PayPal capture', { ok: c.ok, status: c.capture?.status, mode: c.mode });
+
+    let refused = null;
+    try {
+      await triad.triadCaptureOrder({ orderId: o.orderId });
+    } catch (e) {
+      refused = { status: e.status, message: String(e.message).slice(0, 120) };
+    }
+    show('Capture before approval (expect 422)', refused);
+    if (!refused || refused.status !== 422) {
+      console.error('FAIL: an unapproved order was captured. The mock must refuse it.');
+      process.exit(1);
+    }
+
+    // The buyer approves. In the browser this is the PayPal redirect; in mock it is this
+    // explicit call, so no test can skip the human step by accident.
+    triad._paypal._mockApprove(o.orderId);
+    const cap = await triad.triadCaptureOrder({ orderId: o.orderId });
+    show('PayPal capture after approval', { ok: cap.ok, status: cap.capture?.status, mode: cap.mode });
+    if (!cap.ok) {
+      console.error('FAIL: an approved order could not be captured.');
+      process.exit(1);
+    }
   }
 
   // Deny test — no order should be creatable
