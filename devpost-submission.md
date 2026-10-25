@@ -158,6 +158,6 @@ We would rather a judge trust us than be surprised.
 
 ## Try it out
 
-- **Code:** https://github.com/Agentic-Guides/triad
+- **Code:** https://github.com/Agentic-Guides/tuesday
 - **Video:** 2:50, 1080p — https://youtu.be/49eujv0VV0Y
 - **Run it:** `git clone`, then `node demo/server.mjs` → <http://localhost:8787>. No keys needed.

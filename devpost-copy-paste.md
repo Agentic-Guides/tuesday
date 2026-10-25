@@ -186,8 +186,8 @@ multi-agent, llm, sha-256, flux
 ## Try it out
 
 ```
-Code:  https://github.com/Agentic-Guides/triad
+Code:  https://github.com/Agentic-Guides/tuesday
 Video: <YouTube link — added at submission time>
-Run:   git clone https://github.com/Agentic-Guides/triad.git && cd triad && node demo/server.mjs
+Run:   git clone https://github.com/Agentic-Guides/tuesday.git && cd triad && node demo/server.mjs
        → http://localhost:8787   (no API keys needed)
 ```

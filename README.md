@@ -6,14 +6,14 @@
 
 A working prototype for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
-**Code:** https://github.com/Agentic-Guides/triad · **Demo video:** 2:50, 1080p —
+**Code:** https://github.com/Agentic-Guides/tuesday · **Demo video:** 2:50, 1080p —
 https://youtu.be/49eujv0VV0Y
 
 **Run it in one command** — no keys needed, the demo falls back to a deterministic engine, a mock
 PayPal client and a curated catalogue, so it always runs:
 
 ```bash
-git clone https://github.com/Agentic-Guides/triad.git && cd triad
+git clone https://github.com/Agentic-Guides/tuesday.git && cd triad
 node demo/server.mjs          # → http://localhost:8787
 ```
 
