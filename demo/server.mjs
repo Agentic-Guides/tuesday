@@ -340,8 +340,76 @@ const server = createServer(async (req, res) => {
       if (!Object.values(DISPUTE_ACTION).includes(action)) {
         return json(res, 400, { error: 'unknown action' });
       }
-      if (action === DISPUTE_ACTION.CONTEST || action === DISPUTE_ACTION.ESCALATE) {
-        return json(res, 400, { error: 'contest and escalate need evidence assembled; use /api/dispute/review first' });
+      // CONTEST submits the evidence. It was previously rejected here with a 400, which
+      // meant "CONTEST runs without a human" described a capability that did not exist:
+      // the one action allowed to execute automatically could not execute at all. It now
+      // calls provide-evidence, and the notes it sends are the merchant advocate's
+      // reasoning with its citations, so what PayPal receives is what the gate approved.
+      if (action === DISPUTE_ACTION.ESCALATE) {
+        const out = await triad._paypal.escalateDispute
+          ? await triad._paypal.escalateDispute(disputeId, { note: body.note || null })
+          : { ok: true, mock: true };
+        return json(res, 200, { ok: true, action, disputeId, mode: triad._paypal.mode, paypal: out });
+      }
+
+      if (action === DISPUTE_ACTION.CONTEST) {
+        // Re-run the gate over the evidence the caller claims to be citing. Without this
+        // a client could POST "CONTEST" for a dispute whose evidence is missing, and the
+        // one automatic action would be the one with no check behind it.
+        // It needs the dispute; the evidence is rebuilt here from the order rather than
+        // trusted from the caller, so a client cannot supply a flattering evidence set.
+        if (!body.dispute) {
+          return json(res, 400, { error: 'CONTEST needs the dispute and its order; call /api/dispute/review first' });
+        }
+
+        const ev = collectEvidence(body.dispute, body.order || body.dispute.order || null);
+        const args = body.arguments || {
+          advocate: deterministicDisputeReasoning('advocate', ev),
+          challenger: deterministicDisputeReasoning('challenger', ev),
+          arbiter: deterministicDisputeReasoning('arbiter', ev),
+        };
+        const settled = finaliseDispute({
+          dispute: body.dispute, evidence: ev, arguments: args,
+          deadlineHours: body.deadlineHours ?? body.dispute.deadlineHours ?? null,
+        });
+        if (settled.action !== DISPUTE_ACTION.CONTEST) {
+          return json(res, 200, {
+            ok: false, error: 'gate_refused', action: settled.action,
+            gate: settled.gate, note: 'The gate will not let this dispute be contested.',
+          });
+        }
+
+        // The notes PayPal receives are the argument the gate approved, citations included.
+        const advocate = settled.arguments?.advocate || {};
+        const notes = [
+          ...((advocate.reasons || []).slice(0, 5)),
+          '',
+          'Cited evidence:',
+          ...(advocate.cites || []).map((id) => {
+            const item = ev.items.find((x) => x.id === id);
+            return item ? `- ${item.id} (${item.label}): ${item.detail}` : `- ${id}`;
+          }),
+          '',
+          `Decision stamp: ${body.customId || '(not supplied)'}`,
+        ].join('\n').slice(0, 2000);
+
+        // The tracking the merchant actually holds travels with the evidence: PayPal
+        // requires a carrier from its own enum plus a tracking number, and does not
+        // accept an empty tracking_info array.
+        const trackingItem = ev.items.find((x) => x.id === 'E4');
+        const rawTracking = body.order?.tracking || body.dispute?.order?.tracking || null;
+        const out = await triad._paypal.provideDisputeEvidence
+          ? await triad._paypal.provideDisputeEvidence(disputeId, {
+              evidenceType: body.evidenceType || 'PROOF_OF_FULFILLMENT',
+              notes,
+              ...(trackingItem && trackingItem.ok && rawTracking ? { tracking: rawTracking } : {}),
+            })
+          : { ok: true, mock: true };
+
+        return json(res, 200, {
+          ok: true, action, disputeId, mode: triad._paypal.mode,
+          citations: advocate.cites || [], notesSent: notes, paypal: out,
+        });
       }
 
       const out = await triad._paypal.acceptDisputeClaim

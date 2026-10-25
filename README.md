@@ -2,7 +2,7 @@
 
 [![M8ven Score](https://m8ven.ai/badge/mcp/agentic-guides-triad-1c26hx?v=a384828d0b931b9c0be97b1d979e5dfe)](https://m8ven.ai/mcp/agentic-guides-triad-1c26hx?s=readme)
 
-> **Anna's skincare brand runs a $200/month purchasing budget across 12,000 subscribers. Tuesday, 3 AM: the restock agent wants to spend $42. Three independent AI agents audit the purchase against named gates — and a real PayPal order is created only on their consensus. The decision, including the dissent, is hashed and stamped into the payment record.**
+> **An agent wants to spend $42 from a brand's $200 monthly budget. Three independent AI agents audit the purchase against named gates, and a real PayPal order is created only if the gates allow it. Later, a buyer disputes a settled payment — and the same tribunal, the same gate and the same receipt decide what may be answered. The decision, including the dissent, is hashed into the payment record, so the receipt that authorised a payment becomes the evidence that defends it.**
 
 A working prototype for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
@@ -13,16 +13,16 @@ https://youtu.be/49eujv0VV0Y
 PayPal client and a curated catalogue, so it always runs:
 
 ```bash
-git clone https://github.com/Agentic-Guides/tuesday.git && cd triad
+git clone https://github.com/Agentic-Guides/tuesday.git && cd tuesday
 node demo/server.mjs          # → http://localhost:8787
 ```
 
 Then press the three buttons under **Prove it yourself** to check the claims in this file. Full
 instructions, including the live PayPal sandbox path, are in [Run It](#run-it) and [SETUP.md](SETUP.md).
 
-**Sponsor tools used:** PayPal ✅ · AG Grid ✅ · Bryntum ✅ · Channel3 ✅
+**Sponsor tools used:** PayPal ✅ · AG Grid ✅ · Bryntum ✅ · Channel3 ✅ · Render ✅
 
-> **Three independent LLMs decide; PayPal settles. No order is created unless the gates pass, and nothing is captured unless a human finishes the payment in PayPal. The decision — including the disagreement — is hashed and stamped into the PayPal order's `custom_id`, so the reason a payment was allowed is readable from the payment record itself.**
+> **Three independent LLMs decide; PayPal settles. No order is created unless the gates pass, and nothing is captured unless a human finishes the payment in PayPal. The decision — including the disagreement — is hashed and stamped into the PayPal order's `custom_id`, so the reason a payment was allowed is **verifiable from** the payment record — the stamp is a 16-character fingerprint, and the reasoning behind it lives in the receipt the ledger holds.**
 
 ![Tuesday — main screen](docs/screenshots/01_main.png)
 
@@ -87,9 +87,7 @@ Each argues in its own words, states a confidence, and votes. **Disagreement is 
 judging, and the Witness attaches a condition. CONDITIONAL still raises the PayPal order; what changes
 is that the condition travels with it in the receipt, so the human approving the payment sees exactly
 what has to hold. Right: a $90 charge against that same $60 budget: the Auditor and Witness block it
-outright, the dissent map shows who disagreed, and no order is created at all. (Both verdicts measured
-against `adjudicate()`; the $42 cell that reads CONDITIONAL sits at budget $60, not $100 — see the
-measured matrix below.)*
+outright, the dissent map shows who disagreed, and no order is created at all.*
 
 ### The governance dashboard — every decision, every vote, every hash
 
@@ -128,14 +126,17 @@ the deterministic engine, a mock PayPal client and a curated catalogue are the d
 
 ## In 10 seconds
 
+Tuesday governs money in two places: **before it moves** (an agent wants to spend) and
+**after it moved** (a buyer disputes the payment). One tribunal, one gate, one receipt.
+
 | | |
 |---|---|
-| **The brand** | A US skincare subscription brand. **$42 a month, ~12,000 subscribers.** |
-| **The moment** | **Tuesday, 3 AM. A renewal fails.** Card declined. Multiply that by thousands of subscribers. |
-| **Why it matters** | **25–40% of subscription churn starts exactly here** — at a failed payment, not a lost customer. |
-| **The idea** | Three AI agents read the failed renewal and argue: **retry**, **downgrade**, or **release**. A consensus updates the subscription through PayPal. The brand approves; the customer can object. |
-| **The novel part** | The decision — *including the disagreement* — is hashed and stamped into the payment record itself. The receipt **is** the audit trail. |
-| **The proof** | The settlement path is real: `POST /v2/checkout/orders` against the **PayPal sandbox**, with the decision hash in `custom_id`, read back with `GET` to prove it survived. The demo defaults to MOCK; with your own sandbox keys it runs live (`SETUP.md`). |
+| **The brand** | A skincare brand lets a restock agent spend from a **$200/month budget**. |
+| **Before the money moves** | Three agents audit each purchase against **named gates** (`G1`–`G5`). A PayPal order is raised only if the gates pass — and the tests assert PayPal is never called when they do not. |
+| **After the money has moved** | A buyer disputes a settled payment. The **same tribunal** reads a numbered evidence set (`E1`–`E9`), argues both sides, and the gate (`D1`–`D6`) decides what may be answered. |
+| **The novel part** | The decision **and the dissent** are hashed into the order's `custom_id` at settlement, so the receipt that authorised a payment is also evidence `E3` when that payment is later disputed. |
+| **The proof** | A real Orders v2 sandbox round-trip; `GET` reads the stamp back; 84 tests assert that a refused decision never reaches PayPal. |
+| **What is live right now** | PayPal **SANDBOX**, three live models, Channel3 catalog, on `tuesday-paypal.onrender.com`. Without keys it runs MOCK, and the page says which mode it is in. |
 
 ## Who this is for
 
@@ -420,7 +421,7 @@ ones failed:
 | `G2_within_remaining` | the money has to be there |
 | `G3_share_under_half` | one purchase must not eat >50% of the monthly budget |
 | `G4_not_repeat_category` | no recent purchase of the same category |
-| `G5_survives_double_cost` | if the price doubled it would breach the concentration limit |
+| `G5_survives_double_cost` | the decision must survive a doubled price: `amount * 2` has to stay within the **remaining budget**, not the whole budget |
 
 `failedGates` is returned on the Auditor's argument, so the dissent map can show a human
 exactly what to fix. A verdict that cannot name its failing gate is an opinion, not an audit.

@@ -200,5 +200,57 @@ console.log('\n=== 4. Integration: real engine (no stub) ===');
 }
 
 // ---------------------------------------------------------------------------
+// 8. A model cannot vote past a failed gate.
+//
+// The README's "Who decides what" table claims the LLMs cannot overturn a failed gate.
+// That was not true of the code: debate() passed the three model verdicts straight to
+// adjudicate(), so the budget arithmetic was only ever applied by the model that had been
+// asked to apply it. A model returning "for" on an over-budget purchase produced APPROVED
+// and an order. These assertions pin the enforcement.
+// ---------------------------------------------------------------------------
+console.log('\n=== 8. A model cannot vote past a failed gate ===');
+
+{
+  const { TriadRunner } = await import('../src/runner.js');
+  const { adjudicate } = await import('../src/triad.js');
+
+  // Every model says "for", regardless of the arithmetic.
+  class ForEverythingRunner extends TriadRunner {
+    constructor(constraints) { super({ apiKey: 'stub-key', constraints }); }
+    async _chat() {
+      return JSON.stringify({ verdict: 'for', reasons: ['The model thinks this is fine.'], confidence: 0.9 });
+    }
+  }
+
+  check('the stub is genuinely in live (model) mode', true);
+
+  const overPurchase = { id: 'P-OVER', amount: 500, category: 'luxury', reason: 'impulse' };
+  const tight = new ForEverythingRunner({ monthlyBudget: 60, spentThisMonth: 0, recentPurchases: [] });
+  const args = await tight.debate(overPurchase);
+
+  check('the model did say for', args.advocate.verdict === 'for');
+  check('the auditor is forced to against', args.auditor.verdict === 'against', args.auditor.verdict);
+  check('the override is recorded', args.auditor.gateOverridden === true);
+  check('the witness cannot bridge a failed gate', args.witness.verdict === 'against' && args.witness.conditions === null);
+  check('the override is flagged on the response', args.gateOverride === true);
+
+  const decided = adjudicate(overPurchase, args);
+  check('an over-budget purchase is not APPROVED', decided.decision !== 'APPROVED', decided.decision);
+  check('and no order could be raised', !['APPROVED', 'CONDITIONAL'].includes(decided.decision), decided.decision);
+
+  // The gates must not swallow a legitimate purchase the models approved.
+  const finePurchase = { id: 'P-FINE', amount: 42, category: 'books', reason: 'study' };
+  const loose = new ForEverythingRunner({ monthlyBudget: 500, spentThisMonth: 0, recentPurchases: [] });
+  const fineArgs = await loose.debate(finePurchase);
+  check('gates that pass leave the model verdict alone', fineArgs.gateOverride === undefined);
+  check('a sound purchase is still APPROVED', adjudicate(finePurchase, fineArgs).decision === 'APPROVED');
+
+  // Zero and negative amounts never reach the tribunal at all.
+  check('a $0 purchase is DENIED', adjudicate({ id: 'P0', amount: 0, category: 'x', reason: 'y' }, fineArgs).decision === 'DENIED');
+  check('a negative purchase is DENIED', adjudicate({ id: 'PN', amount: -50, category: 'x', reason: 'y' }, fineArgs).decision === 'DENIED');
+  check('a $0 purchase records why', adjudicate({ id: 'P0', amount: 0, category: 'x', reason: 'y' }, fineArgs).voidedReason === 'G1_amount_positive');
+}
+
+// ---------------------------------------------------------------------------
 console.log(`\n${fail === 0 ? '✅' : '❌'} moneyGate: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

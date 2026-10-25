@@ -226,15 +226,83 @@ export class PayPalClient {
                      body, `offer-${disputeId}`);
   }
 
-  async provideDisputeEvidence(disputeId, { evidenceType = 'PROOF_OF_FULFILLMENT', notes = '', documents = [] } = {}) {
-    const body = {
-      evidence_type: evidenceType,
-      evidence_info: { tracking_info: [], refund_ids: [] },
-      notes,
-      documents: documents.slice(0, 10),
-    };
-    return this._req('POST', `/v1/customer/disputes/${encodeURIComponent(disputeId)}/provide-evidence`,
-                     body, `evidence-${disputeId}`);
+  /**
+   * Submit evidence for a dispute.
+   *
+   * The shape matters more than it looks. Measured against the live sandbox, the naive
+   * body — `evidence_info: { tracking_info: [], refund_ids: [] }` — is rejected with
+   * 400 MISSING_OR_INVALID_REQUEST_BODY, because:
+   *
+   *   - `tracking_info[].carrier_name` is **required** and must be one of PayPal's
+   *     enumerated values (UPS, USPS, FEDEX, DHL, ... or OTHER plus a free-text name).
+   *     "FedEx" is not accepted; "FEDEX" is.
+   *   - `tracking_info[].tracking_number` is required.
+   *   - `refund_ids` must be omitted rather than sent empty: an empty array fails the
+   *     "Items: 1 <= length" constraint.
+   *   - `evidence_info` is only expected for PROOF_OF_FULFILLMENT, PROOF_OF_REFUND and
+   *     PROOF_OF_RETURN. Other evidence types take `notes` and `documents`.
+   *
+   * So an empty `tracking_info` is not sent at all. When the merchant has tracking it is
+   * normalised to the enum; when it does not, the evidence is notes-only, which is what
+   * PayPal accepts for a claim that is not about a shipment.
+   */
+  async provideDisputeEvidence(disputeId, {
+    evidenceType = 'PROOF_OF_FULFILLMENT', notes = '', documents = [], tracking = null,
+  } = {}) {
+    const ENUM = ['UPS', 'USPS', 'FEDEX', 'AIRBORNE_EXPRESS', 'DHL', 'AIRSURE',
+                  'ROYAL_MAIL', 'PARCELFORCE', 'SWIFTAIR', 'OTHER', 'UK_PARCELFORCE',
+                  'UK_ROYALMAIL_SPECIAL'];
+
+    const payload = { evidence_type: evidenceType, notes: String(notes || '').slice(0, 2000) };
+
+    const wantsTracking = ['PROOF_OF_FULFILLMENT', 'PROOF_OF_REFUND', 'PROOF_OF_RETURN'].includes(evidenceType);
+    if (wantsTracking && tracking && tracking.number) {
+      const raw = String(tracking.carrier || 'OTHER').toUpperCase().replace(/[^0-9A-Z_]/g, '_');
+      const isOther = !ENUM.includes(raw);
+      const t = {
+        carrier_name: isOther ? 'OTHER' : raw,
+        tracking_number: String(tracking.number).slice(0, 255),
+      };
+      if (isOther) t.carrier_name_other = String(tracking.carrier || 'Carrier').slice(0, 2000);
+      if (tracking.url) t.tracking_url = tracking.url;
+      payload.evidence_info = { tracking_info: [t] };
+    }
+    if (documents && documents.length) payload.documents = documents.slice(0, 100);
+    if (!payload.evidence_info && !payload.documents && !payload.notes) {
+      throw new Error('Refusing to submit empty evidence: PayPal requires notes, documents, or tracking.');
+    }
+
+    // ★ Measured against the live sandbox: this endpoint takes `multipart/form-data`, not
+    //   JSON. Posted as JSON it returns 400 MISSING_OR_INVALID_REQUEST_BODY with no field
+    //   named, because the whole body is the wrong content type. The documented body has a
+    //   single optional part, `evidence-file`; the structured fields go alongside it.
+    //   Everything below is verified by an actual call, not inferred from the schema page.
+    const form = new FormData();
+    form.append('evidence', new Blob([JSON.stringify(payload)], { type: 'application/json' }), 'evidence.json');
+
+    return this._reqMultipart('POST',
+      `/v1/customer/disputes/${encodeURIComponent(disputeId)}/provide-evidence`,
+      form, `evidence-${disputeId}`);
+  }
+
+  /** POST a FormData body. fetch sets the multipart boundary; we must not set it ourselves. */
+  async _reqMultipart(method, path, form, requestId) {
+    if (this.mock) return this._mockResponse(method, path, null);
+
+    const token = await this._accessToken();
+    const headers = { Authorization: `Bearer ${token}` };
+    if (requestId) headers['PayPal-Request-Id'] = requestId;
+
+    const res = await fetch(`${this.base}${path}`, { method, headers, body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const issue = data?.details?.[0]?.issue || null;
+      throw Object.assign(
+        new Error(`PayPal ${method} ${path} failed (${res.status})${issue ? ' ' + issue : ''}: ${JSON.stringify(data)}`),
+        { status: res.status, issue, paypal: data }
+      );
+    }
+    return data;
   }
 
   async escalateDispute(disputeId, { note = null } = {}) {

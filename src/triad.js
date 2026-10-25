@@ -329,6 +329,29 @@ export const DECISION = {
 export function adjudicate(purchase, args, threshold = 2) {
   const { advocate, auditor, witness } = args;
 
+  // ★ A purchase that cannot be quantified is not a purchase, and it certainly cannot be
+  //   approved. This guard lives here rather than only in the auditor's reasons because
+  //   the auditor saying "against" was not enough: with two objectors abstaining on
+  //   severity, a $0 or a -$50 purchase still came out CONDITIONAL — and CONDITIONAL is
+  //   exactly the verdict that lets a PayPal order be raised. The demo could have minted
+  //   an order for a negative amount while printing "G1: an unquantifiable purchase
+  //   cannot be audited" in its own audit log.
+  const amount = Number(purchase?.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    const reason = `A purchase must carry a positive amount; this one is ${purchase?.amount}.`;
+    const arg = (role) => ({ agent: role, verdict: 'against', reasons: [reason], conditions: null, confidence: 1 });
+    return {
+      decision: DECISION.DENIED,
+      votesFor: 0,
+      votesAgainst: 3,
+      threshold,
+      purchase,
+      arguments: { advocate: arg('advocate'), auditor: arg('auditor'), witness: arg('witness') },
+      dissentMap: { summary: 'The purchase has no auditable amount.', reasons: [reason] },
+      voidedReason: 'G1_amount_positive',
+    };
+  }
+
   const votesFor = [advocate, auditor, witness].filter(a => a && a.verdict === 'for').length;
   const votesAgainst = [advocate, auditor, witness].filter(a => a && a.verdict === 'against').length;
   const hasCondition = witness?.conditions != null && String(witness.conditions).trim() !== '';

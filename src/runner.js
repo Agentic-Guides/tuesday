@@ -109,6 +109,52 @@ As the neutral judge, decide. Output JSON: {"verdict":"for"|"against","reasons":
     const witnessRaw = await this._chat(this.agents.witness, witnessPrompt);
     const witness = this._parse(this.agents.witness, witnessRaw, purchase);
 
+    // ★ The deterministic gates always run, and a model cannot vote past them.
+    //
+    //   Before this, `debate()` handed the three model verdicts straight to adjudicate(),
+    //   so the arithmetic of the budget was only ever applied by the model that was asked
+    //   to apply it. A model returning "for" on an over-budget purchase produced APPROVED
+    //   — and an order. The README claimed "no LLM can overturn a failed gate", which was
+    //   not true of the code.
+    //
+    //   The gates now run independently of the models. If any gate fails, the Auditor is
+    //   forced to 'against' with the failing gate named, and the Witness may no longer
+    //   bridge the gap with a condition — a condition cannot buy back money that is not
+    //   there. What the models still own is *why*: they explain, they argue, and the
+    //   Witness can add a legitimate condition on top of gates that actually passed.
+    const gateCheck = deterministicReason(this.agents.auditor, purchase);
+    const gateFailed = (gateCheck.reasons || []).some((x) => /^Blocked by|^Over budget|^No amount to audit/.test(x))
+      || gateCheck.verdict === 'against';
+
+    if (gateFailed) {
+      const merged = {
+        ...auditor,
+        verdict: 'against',
+        reasons: [
+          ...((auditor.reasons || []).slice(0, 3)),
+          ...gateCheck.reasons,
+          'The deterministic gates failed, so no model vote can approve this purchase.',
+        ],
+        gateOverridden: true,
+      };
+      return {
+        advocate,
+        auditor: merged,
+        witness: {
+          ...witness,
+          verdict: 'against',
+          conditions: null,
+          reasons: [
+            ...((witness.reasons || []).slice(0, 2)),
+            'A failed gate cannot be bridged by a condition.',
+          ],
+          gateOverridden: true,
+        },
+        engine: 'llm',
+        gateOverride: true,
+      };
+    }
+
     return { advocate, auditor, witness, engine: 'llm' };
   }
 
