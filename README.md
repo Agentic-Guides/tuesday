@@ -2,12 +2,12 @@
 
 [![M8ven Score](https://m8ven.ai/badge/mcp/agentic-guides-triad-1c26hx?v=a384828d0b931b9c0be97b1d979e5dfe)](https://m8ven.ai/mcp/agentic-guides-triad-1c26hx?s=readme)
 
-> **Anna's skincare brand bills $42 a month to 12,000 subscribers. Tuesday, 3 AM: a renewal fails. Three AI agents debate whether to retry, downgrade, or let the customer go — and a real PayPal subscription is updated on their consensus. The brand approves. The customer can object. The proof is stamped into the payment record.**
+> **Anna's skincare brand runs a $200/month purchasing budget across 12,000 subscribers. Tuesday, 3 AM: the restock agent wants to spend $42. Three independent AI agents audit the purchase against named gates — and a real PayPal order is created only on their consensus. The decision, including the dissent, is hashed and stamped into the payment record.**
 
 A working prototype for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
-**Code:** https://github.com/Agentic-Guides/triad · **Demo video:** 2:33, 1080p —
-`devpost-media/tuesday_submission_v9_1080p.mp4`
+**Code:** https://github.com/Agentic-Guides/triad · **Demo video:** 2:50, 1080p —
+https://youtu.be/49eujv0VV0Y
 
 **Run it in one command** — no keys needed, the demo falls back to a deterministic engine, a mock
 PayPal client and a curated catalogue, so it always runs:
@@ -22,7 +22,7 @@ instructions, including the live PayPal sandbox path, are in [Run It](#run-it) a
 
 **Sponsor tools used:** PayPal ✅ · AG Grid ✅ · Bryntum ✅ · Channel3 ✅
 
-> **Three independent LLMs decide; PayPal settles. Nothing is renewed unless the three agents agree, and nothing is captured unless a human finishes the payment in PayPal. The decision — including the disagreement — is hashed and stamped into the PayPal order's `custom_id`, so the reason a payment was allowed is readable from the payment record itself.**
+> **Three independent LLMs decide; PayPal settles. No order is created unless the gates pass, and nothing is captured unless a human finishes the payment in PayPal. The decision — including the disagreement — is hashed and stamped into the PayPal order's `custom_id`, so the reason a payment was allowed is readable from the payment record itself.**
 
 ![Tuesday — main screen](docs/screenshots/01_main.png)
 
@@ -59,7 +59,7 @@ The card shows both hashes so you can see exactly what was compared.
 
 ### The 5-minute walkthrough
 
-[Demonstration video](devpost-media/tuesday_submission_v9_1080p.mp4) — 2:33, 1080p. Narrated, and
+[Demonstration video](https://youtu.be/49eujv0VV0Y) — 2:50, 1080p. Narrated, and
 every verdict in it is the demo running: APPROVED, DENIED, and the money-gate suite returning
 31 passed / 0 failed on screen.
 Six screenshots are in `devpost-media/`, with the captions they carry in `devpost-media/captions.json`.
@@ -83,9 +83,12 @@ Each argues in its own words, states a confidence, and votes. **Disagreement is 
 |---|---|
 | ![CONDITIONAL — the Tribunal splits, and the dissent is kept](docs/screenshots/04_debate.png) | ![DENIED — the Auditor and Witness block an over-budget charge](docs/screenshots/03_denied.png) |
 
-*Left: a $42 renewal against a $100 budget comes back CONDITIONAL — one vote for, one against, one
-judging — and the purchase does not proceed on a rounded-up yes. Right: a $90 charge against the same
-$100 budget: the Auditor and Witness block it, and the dissent map shows exactly who disagreed.*
+*Left: a $42 renewal against a $60 budget comes back CONDITIONAL — one vote for, one against, one
+judging, and the Witness attaches a condition — so the purchase does not proceed on a rounded-up yes.
+Right: a $90 charge against that same $60 budget: the Auditor and Witness block it outright, and the
+dissent map shows exactly who disagreed. (Both verdicts measured on 2026-10-24 against
+`adjudicate()`; the $42 cell that reads CONDITIONAL sits at budget $60, not $100 — see the measured
+matrix below.)*
 
 ### The governance dashboard — every decision, every vote, every hash
 
@@ -94,6 +97,21 @@ $100 budget: the Auditor and Witness block it, and the dissent map shows exactly
 | Vote timeline (Bryntum) | Shop flow (Channel3 → Tribunal) |
 |---|---|
 | ![Bryntum timeline — one bar per agent vote](docs/screenshots/05_timeline.png) | ![Shop request and the gold CTA](docs/screenshots/02_shop.png) |
+
+#### Read the **Source** column before you read the ledger
+
+The ledger starts with **six rows generated at boot** so that a first-time visitor sees a working
+table instead of an empty one. Those rows are produced by the same `adjudicate()` the live endpoint
+uses — same gates, same vote split, same receipt hashes — but no money ever moved for them, and no
+PayPal order exists behind them.
+
+The **Source** column says which is which: `demo` for the six boot rows, `live` for anything you
+adjudicate yourself. `GET /api/ledger` carries the same signal as `seeded: true/false` on each entry,
+so the distinction survives outside the UI.
+
+If you press **Verify** on a `demo` row it returns `receipt_not_found` — that is correct, not a bug.
+There is no PayPal order to verify against, because no order was ever created. Verify a `live` row
+and the check runs against PayPal's own record via `GET /v2/checkout/orders/{id}`.
 
 ---
 
@@ -256,7 +274,7 @@ CONSENSUS?  ── no ──→  nothing is created. The dissent map is returned
        yes
         ↓
 PayPal Orders v2 REST + WebMCP (`navigator.modelContext`)
-   → the renewal is created through PayPal's MCP server
+   → the purchase is settled through PayPal Orders v2 REST (sandbox)
    → the receipt hash is stamped into custom_id
         ↓
 The brand approves in one tap. The subscriber sees exactly what happened, and can object.
@@ -274,8 +292,8 @@ src/receipt.js     — Consensus receipt: canonical hash of decision + votes + r
 src/channel3.js    — Channel3 product-catalog adapter (live API; curated fallback without a key)
 src/commerce.js    — Shop flow: Channel3 candidates → tribunal adjudication → the row the judge picks
 src/webmcp.js      — Registers the tribunal as WebMCP tools + orchestrates PayPal settlement
-paypal/client.js   — PayPal Orders v2 REST client (Sandbox, + deterministic mock fallback)
-paypal/client.js — PayPal Orders v2 REST client (OAuth2 token, create/capture/get order)
+paypal/client.js   — PayPal Orders v2 REST client (OAuth2 token, create/capture/get order;
+                     deterministic mock fallback when no sandbox keys are present)
 demo/server.mjs    — Zero-dependency HTTP server
 demo/index.html    — Demo UI (AG Grid ledger + Bryntum renewal timeline)
 tests/moneyGate.test.js — The money gate, mechanically proven (0 records on non-consensus)
@@ -312,24 +330,48 @@ are no writes to parallelize.
 
 That is what makes the receipt meaningful: the verdict, all three votes, and the
 reasoning fingerprints are hashed together, and the hash is stamped into the
-PayPal order's `custom_id`. If any agent had written independently, the artifact
-could not honestly claim to be the record of the decision.
+PayPal order's `custom_id` as `triad1:<16 hex>`. If any agent had written
+independently, the artifact could not honestly claim to be the record of the decision.
 
-**What this buys the merchant.** The engine also guarantees behaviour, not just
-structure: with no API key at all (`node test_triad.mjs`) the deterministic
-reasoning layer returns the same verdicts the LLMs do, so the money gate cannot be
-argued around by a model outage or a prompt injection inside a product listing.
+**Why 16 hex characters and not the full 64.** Not a PayPal limit — the Orders v2
+schema allows `custom_id` up to 255 characters, so the full digest would fit. The
+16-character prefix (64 bits) is a deliberate trade: it is short enough that a human
+can read two of them side by side on screen and in a PayPal dashboard and compare
+them by eye, which is the actual check this demo asks you to perform. It is a
+*fingerprint for comparison*, not a cryptographic commitment. If you need
+collision-resistant tamper evidence under adversarial conditions, use the full
+`receipt.hash` — it is stored in the receipt and in the ledger; only the stamped
+copy is truncated.
+
+**Who decides what — the split that makes the LLMs load-bearing.**
+
+The obvious question is: if the gates decide, are the models decoration? No, and the
+code separates the two jobs on purpose.
+
+| | Deterministic gates (`G1`–`G5`) | The three LLMs |
+| --- | --- | --- |
+| **Authority** | **Veto.** Arithmetic over money is never delegated to a model. | **No veto over arithmetic.** Cannot approve what a gate failed. |
+| **What they do** | Answer *can* this be paid: is the amount positive, is the money there, is it under 50% of the budget, is it a repeat, does it survive a doubled price | Answer *should* this be paid, and *under what conditions* |
+| **Output** | `failedGates: ["G5_survives_double_cost"]` | An argument, and — from the Witness — concrete `conditions` |
+| **Cannot do** | Explain itself, price a risk, write a condition | Override a failed gate |
+
+The Witness is where the models earn their place. When the vote splits, it returns
+`conditions` that a gate cannot produce: *"approve only if the $42 is split into two
+$21 orders,"* *"approve if the category has not repeated inside 30 days."* A gate can
+only say pass or fail; the Witness turns a near-miss into a payment a human can
+actually sign. That field is stamped into the receipt, so the condition travels with
+the payment.
+
+And the guarantee that keeps the money safe: with no API key at all
+(`node test_triad.mjs`) the deterministic reasoning layer returns the same verdicts
+the LLMs do, so a model outage or a prompt injection inside a product listing cannot
+talk the gates into releasing money. **The models can make a refusal more useful. They
+cannot make an approval happen.**
 
 
 ## The auditor rejects with named gates, not opinions
 
-A high score is not evidence of an edge. We tested that claim rather than repeating it:
-10,000 randomly-trading bots on a pure-noise market (drift 0, one-day execution lag,
-10,000 bots x 500 days) produced a **best in-sample Sharpe of 2.93**. Adding a 0.05%
-per-side fee dropped the best to **1.20**; at 0.10% it fell to **0.14**. With no fees at
-all, **7.5% of the bots** looked like they had a Sharpe above 1 — roughly one in thirteen.
-
-So the Auditor does not say "this looks risky." It runs named gates and reports which
+The Auditor does not say "this looks risky." It runs named gates and reports which
 ones failed:
 
 | Gate | Meaning |
@@ -345,28 +387,37 @@ exactly what to fix. A verdict that cannot name its failing gate is an opinion, 
 Failing a gate is not the same as "do not buy" — `G5` means you are buying with no headroom,
 and the engine says so out loud instead of silently approving.
 
-Measured decision matrix (budget $200, spent $0):
+Measured decision matrix (budget $200, spent $0). Every row below was re-measured against
+`adjudicate()` on 2026-10-24 — the verdicts, the vote split and the failing gates are engine output,
+not hand-written expectations:
 
-| Purchase | Decision | Failed gates |
-| --- | --- | --- |
-| $42 | **APPROVED** | none |
-| $120 (60% share) | CONDITIONAL | G3, G5 |
-| $90 (double cost breaches limit) | CONDITIONAL | G5 |
-| $42, same category as a recent purchase | CONDITIONAL | G4 |
-| $0 | CONDITIONAL | G1 |
-| $250 (over budget) | **DENIED** | G2, G3, G5 |
+| Purchase | Votes (A/B/W) | Decision | Failed gates |
+| --- | --- | --- | --- |
+| $42 | for / for / neutral | **APPROVED** | none |
+| $90 | for / for / neutral | **APPROVED** | none — $90 of $200 is 45% share, under the G3 ceiling |
+| $120 (60% share) | for / against / neutral + condition | CONDITIONAL | G3, G5 |
+| $150 (75% share) | for / against / neutral + condition | CONDITIONAL | G3, G5 |
+| $0 | for / against / neutral + condition | CONDITIONAL | G1 |
+| $42 with $180 already spent | for / against / against | **DENIED** | G2 |
+| $250 (over budget) | for / against / against | **DENIED** | G2, G3, G5 |
+
+`G4` (no repeat category) is a gate the Auditor can cite, but in the default flow
+`recentPurchases` is empty, so it does not fire unless you pass a purchase history to
+`triadAdjudicate`. The demo's candidate grid does not set one.
 
 ## PayPal Developer Platform usage (depth)
 
-This is not a checkout button. PayPal is the settlement layer the whole model depends on, and it
-is used across **five** surfaces:
+This is not a checkout button. PayPal is the settlement layer the whole model depends on. **Three
+surfaces are wired up in this demo**, and two more are named because they are where this design goes
+in production:
 
-| Surface | How it is used |
-|---|---|
-| **Orders v2 REST** (`paypal/client.js`) | The settlement path this demo actually runs: `POST /v1/oauth2/token` → `POST /v2/checkout/orders` with the decision hash in `purchase_units[0].custom_id` → `POST .../capture`, and `GET .../orders/{id}` to read the stamp back. |
-| **Money gate** (`src/webmcp.js`) | `triadCreateOrder()` refuses to call PayPal at all when the decision is DENIED or DISSENT — it returns `not_approved` before any network call. Asserted by `tests/moneyGate.test.js`. |
-| **WebMCP** (`navigator.modelContext`) | Registered in `src/commerce.js` / `src/webmcp.js`, so an agent browser can drive the flow as page tools. |
-| **Not implemented** | Subscriptions v1 and the PayPal Agent Toolkit (`@paypal/mcp`) are not wired up in this demo. The settlement path here is Orders v2 REST; the Agent Toolkit is the integration point this design would move to in production. |
+| Surface | Status | How it is used |
+|---|---|---|
+| **Orders v2 REST** (`paypal/client.js`) | **Implemented** | The settlement path this demo actually runs: `POST /v1/oauth2/token` → `POST /v2/checkout/orders` with the decision hash in `purchase_units[0].custom_id` → `POST .../capture`, and `GET .../orders/{id}` to read the stamp back. The `GET` is what `triadVerifyReceipt` calls, so the audit check compares against PayPal's own record, not a copy held in memory. |
+| **Money gate** (`src/webmcp.js`) | **Implemented** | `triadCreateOrder()` refuses to call PayPal at all when the decision is DENIED or DISSENT — it returns `not_approved` before any network call. Asserted by `tests/moneyGate.test.js`. |
+| **WebMCP** (`navigator.modelContext`) | **Implemented** | Registered in `src/commerce.js` / `src/webmcp.js`, so an agent browser can drive the flow as page tools. |
+| Subscriptions v1 | Not implemented | The product story is a *failed renewal*, but the settlement here is an Orders v2 one-off. We tried the subscription path: in the sandbox an `APPROVAL_PENDING` subscription cannot be activated by an API call (`POST /activate` → 422), which is PayPal's design — the buyer must approve. Wiring the recurring plan itself is the next step, not something this demo claims to have done. |
+| PayPal Agent Toolkit (`@paypal/mcp`) | Not implemented | The integration point this design would move to in production. The demo settles through Orders v2 REST directly so a judge can run it with nothing but sandbox credentials. |
 
 ### Prove it yourself against the PayPal sandbox
 
@@ -449,11 +500,18 @@ it is the difference between reading the code and being misled by it.
 | The PayPal path runs against a **mock client**; no network calls | Orders v2 REST against the **real PayPal sandbox** |
 | The catalogue is a **curated 24-product set** | Channel3 live search |
 
-So: **the money gate, the receipts, the ledger, the grid and the timeline are real in both modes** —
-they are our code, not a fixture. What changes is where the three *opinions* come from. The demo you
-run with no keys will not hallucinate an LLM debate; it will show you a rule engine wearing the same
+So: **the money gate, the receipt hashing, the verification path, the grid and the timeline are the
+same code in both modes.** What changes is where the three *opinions* come from. The demo you run
+with no keys will not hallucinate an LLM debate; it will show you a rule engine wearing the same
 three names, and the `engine` field on the verdict line says `deterministic` when that is the case.
 The video was recorded with the live models.
+
+One honest exception: the **six ledger rows you see on a cold start are generated at boot**
+(`seedLedger()` in `src/webmcp.js`), not carried over from a previous session. They are computed by
+the real `adjudicate()` and carry real receipt hashes, but they represent no PayPal order. The
+**Source** column marks them `demo`; anything you adjudicate yourself is marked `live`. Without the
+seed the table would open empty, which reads as a broken panel rather than a clean slate — so the
+rows are labelled rather than removed.
 
 ### Optional: enable the live integrations
 

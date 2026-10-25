@@ -92,7 +92,9 @@ http://localhost:8787
 
 ```
 Disagreement is a first-class outcome. A system that always reaches consensus is not auditing
-anything. Tuesday has three reachable verdicts, and all three appear in the live ledger:
+anything. Tuesday has three reachable verdicts, and all three appear in the ledger (the six rows
+the demo opens with are generated at boot and marked "demo" in the Source column; anything you
+adjudicate yourself is marked "live"):
 
   APPROVED    — 2 for, 0 against. PayPal hands back an approval link.
   CONDITIONAL — the agents split. The purchase does not proceed on a rounded-up yes.
@@ -102,12 +104,13 @@ The 4x4 grid is measured from the running demo, not estimated. The demo recomput
 when you press "Show me all 16 cells":
 
   charge \ budget | $30        | $60         | $150        | $400
-  $9              | CONDITIONAL| APPROVED    | APPROVED    | APPROVED
-  $18             | CONDITIONAL| CONDITIONAL | APPROVED    | APPROVED
-  $42             | DENIED     | CONDITIONAL | CONDITIONAL | APPROVED
+  $9              | APPROVED   | APPROVED    | APPROVED    | APPROVED
+  $18             | CONDITIONAL| APPROVED    | APPROVED    | APPROVED
+  $42             | DENIED     | CONDITIONAL | APPROVED    | APPROVED
   $90             | DENIED     | DENIED      | CONDITIONAL | APPROVED
 
 Bigger charge, stricter verdict. Bigger budget, looser verdict. Every cell moves for a reason.
+(All sixteen cells re-measured against adjudicate() on 2026-10-24.)
 ```
 
 ---
@@ -171,7 +174,7 @@ multi-agent, llm, sha-256, flux
 01_main.png     — The demo opens on the story: a $42 renewal failed at 3 AM. Category, amount, monthly budget and why.
 02_shop.png     — Give the agents a category and a budget. Candidate products come back with real photographs; the Tribunal judges each one.
 03_denied.png   — A $90 charge against a $60 monthly budget. The Auditor and the Witness block it.
-04_debate.png   — A $42 renewal comes back CONDITIONAL: one for, one against, one judging.
+04_debate.png   — A $42 renewal against a $60 budget comes back CONDITIONAL: one for, one against, one judging, with a condition attached.
 05_timeline.png — One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral.
 06_ledger.png   — Every decision, every vote, every receipt in one AG Grid dashboard.
 07_proof.png   — Three claims, three tests, all runnable in the page: the money-gate suite returns 31 passed, 0 failed.

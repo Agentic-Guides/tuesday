@@ -318,15 +318,35 @@ export function adjudicate(purchase, args, threshold = 2) {
 
   const votesFor = [advocate, auditor, witness].filter(a => a && a.verdict === 'for').length;
   const votesAgainst = [advocate, auditor, witness].filter(a => a && a.verdict === 'against').length;
-  const hasCondition = witness?.conditions != null;
+  const hasCondition = witness?.conditions != null && String(witness.conditions).trim() !== '';
 
+  // ★判定順序（2026-10-24 修正）
+  //
+  // 以前は hasCondition を最優先していたため、
+  //   A=against / B=against / W=neutral(条件付き) → CONDITIONAL
+  // となり、反対2票でも PayPal 注文が作れてしまった（実測で確認）。
+  // 全会一致の反対（3票）でも CONDITIONAL になっていた。
+  //
+  // 修正後は「拒否が先、合意は後」。ただし対立1対1を条件で解く道は残す
+  // （これがこの製品の物語そのものだから）。
+  //
+  //   1) 反対が2票以上                        → DENIED       金額を動かせない
+  //   2) 賛成が threshold 以上                 → CONDITIONAL  条件があれば
+  //                                             APPROVED     条件がなければ
+  //   3) 賛成1 + 反対1 + Witness が条件を提示  → CONDITIONAL  対立を条件で解く
+  //   4) それ以外                             → DISSENT      合意なし。人間の判断へ
+  //
+  // 3) を入れている理由: 「Advocate が押し、Auditor が止め、Witness が条件を
+  // 付けて橋を架ける」というのが本製品の中心的な振る舞いであり、
+  // これを DISSENT に落とすと製品の意味がなくなる。
+  // 反対2票は 1) で先に落ちるので、この経路が金の抜け穴にはならない。
   let decision;
-  if (hasCondition) {
-    decision = DECISION.CONDITIONAL;
-  } else if (votesAgainst >= 2) {
+  if (votesAgainst >= 2) {
     decision = DECISION.DENIED;
   } else if (votesFor >= threshold) {
-    decision = DECISION.APPROVED;
+    decision = hasCondition ? DECISION.CONDITIONAL : DECISION.APPROVED;
+  } else if (votesFor === 1 && votesAgainst === 1 && hasCondition) {
+    decision = DECISION.CONDITIONAL;
   } else {
     decision = DECISION.DISSENT;
   }

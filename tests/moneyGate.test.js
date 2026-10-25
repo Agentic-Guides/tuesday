@@ -64,9 +64,12 @@ const ARGS = {
     auditor: a('auditor', 'for', ['within budget']),
     witness: a('witness', 'neutral', ['both sides agree']),
   },
+  // ★CONDITIONAL は「賛成2票以上 + Witness が条件を付ける」場合だけ。
+  //   以前は賛成1票 + 条件でも CONDITIONAL にしていたが、それは
+  //   「3体の合意が必要」という主張と矛盾していた（2026-10-24 修正）。
   CONDITIONAL: {
     advocate: a('advocate', 'for', ['worth it']),
-    auditor: a('auditor', 'against', ['borderline over budget']),
+    auditor: a('auditor', 'for', ['fits the budget but tight']),
     witness: a('witness', 'neutral', ['compromise'], { conditions: 'reduce price 30%' }),
   },
   DENIED: {

@@ -48,7 +48,21 @@ what it claims.
 
 - **threshold = 2**（3体中2票）。`adjudicate(purchase, args, 2)` を変えるなら、
   既存テスト3本（in-budget / over budget / split）を通すこと。
-- **DENIED は votesAgainst >= 2**。1票だけでは DENIED にならない（CONDITIONAL）。
+- **判定順序は「拒否が先、合意は後」。この順序を入れ替えるな**（2026-10-24 に
+  実際に壊れた箇所）:
+  1. `votesAgainst >= 2` → **DENIED**（金額を動かせない）
+  2. `votesFor >= threshold` → Witness が条件を持てば **CONDITIONAL**、無ければ **APPROVED**
+  3. `votesFor === 1 && votesAgainst === 1` かつ Witness が条件を提示 → **CONDITIONAL**
+  4. それ以外 → **DISSENT**
+
+  以前は「Witness が条件を持っていれば無条件に CONDITIONAL」を最優先していたため、
+  **反対2票でも CONDITIONAL になり PayPal 注文が作れた**（実測で再現）。
+  全会一致の反対（3票）でも同じだった。`tests/moneyGate.test.js` はこの経路を
+  塞いでいるが、テストケースの `CONDITIONAL` は「賛成2票 + 条件」で組むこと。
+  賛成1票 + 条件は DISSENT であり CONDITIONAL ではない。
+- 3) を残しているのは製品の意味を守るため: 「Advocate が押し、Auditor が止め、
+  Witness が条件で橋を架ける」が本製品の中心的な振る舞い。
+  1) が先に落ちるので、この経路が金の抜け穴にはならない。
 - **監査役（auditor）の判定順序**: ① 金額が正か（0/未指定/負は拒否）
   ② 予算超過か ③ 予算シェアが 50% 超か ④ recentPurchases があるなら 25% 超か。
   ③は recentPurchases に依存させない — 依存させると「予算の93%を使う買い物」が

@@ -538,7 +538,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>TUESDAY</h1> <div class="sub">A $42/month renewal fails on Tuesday, 3 AM. Three AI agents debate retry / downgrade / release — and a real PayPal order is raised on their consensus. US skincare brand · 12,000 subscribers.</div>
+    <h1>TUESDAY</h1> <div class="sub" id="premise">A $42/month renewal fails on Tuesday, 3 AM. Three AI agents debate retry / downgrade / release — and a real PayPal order is raised on their consensus. US skincare brand · 12,000 subscribers.</div>
     <div class="tags">
       <span class="tag">PayPal Orders v2 REST</span>
       <span class="tag">Three LLMs</span>
@@ -743,7 +743,12 @@ async function api(path, body) {
   // disabled, every later click is swallowed, and the reviewer sees a frozen
   // page with no error. Abort instead, and let the caller show what happened.
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 15000);
+  // ★実測（2026-10-24）: /api/shop は 5商品 × 3体の LLM 判定で 15 秒を超える。
+  //   15 秒で打ち切るとボタンが無反応に見え、Shop タブが「壊れている」と
+  //   誤解される（実際に動画撮影で商品が一度も出なかった）。
+  //   /api/grid は 16マス × 3体で 74.5 秒かかるので、上限は 240 秒にする。
+  const TIMEOUT_MS = (path === '/api/grid' || path === '/api/shop') ? 240000 : 15000;
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
     const r = await fetch(path, {
       method: body ? 'POST' : 'GET',
@@ -854,15 +859,21 @@ function voteChips(votes) {
 function initLedgerGrid() {
   ledgerGridApi = agGrid.createGrid(document.getElementById('auditGrid'), {
     columnDefs: [
+      // ★起動時に生成される演出用の履歴と、実際の判断を区別する。
+      //   この列が無いと、審査員は seed された6件を「実際の実績」と誤解する。
+      { field: 'seeded', headerName: 'Source', width: 112, minWidth: 104,
+        cellRenderer: p => p.value
+          ? '<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:#fef3c7;color:#92400e;font-weight:600">demo</span>'
+          : '<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:#dcfce7;color:#166534;font-weight:600">live</span>' },
       { field: 'at', headerName: 'Time', width: 100, minWidth: 92,
         valueFormatter: p => new Date(p.value).toLocaleTimeString() },
-      { field: 'category', headerName: 'Item', flex: 2.0, minWidth: 200,
+      { field: 'category', headerName: 'Item', flex: 2.4, minWidth: 260,
         tooltipField: 'category',
         valueFormatter: p => String(p.value ?? '').length > 26
           ? String(p.value).slice(0, 25) + '…' : p.value },
-      { field: 'amount', headerName: 'Amount', width: 92, minWidth: 84,
+      { field: 'amount', headerName: 'Amount', width: 104, minWidth: 96,
         valueFormatter: p => '$' + Number(p.value).toLocaleString() },
-      { field: 'decision', headerName: 'Decision', width: 116, minWidth: 106,
+      { field: 'decision', headerName: 'Decision', width: 130, minWidth: 106,
         cellStyle: p => ({ fontWeight:'700',
           color: p.value==='APPROVED'?'#15803d':p.value==='DENIED'?'#be123c':p.value==='CONDITIONAL'?'#c0203c':'#1d4ed8' }) },
       { field: 'summary', headerName: 'Consensus / Dissent', flex: 2.4, minWidth: 210,
@@ -926,6 +937,9 @@ async function refreshLedger() {
     decision: e.decision, summary: e.summary, customId: e.customId, receiptHash: e.receiptHash,
     votes: e.votes, models: e.models, engine: e.engine, threshold: e.threshold,
     dissentMap: e.dissentMap, receiptIntact: e.receiptIntact,
+    // ★起動時に生成される演出用の履歴。UI で明示しないと
+    //   「実際の判断実績」と誤解されるため、行に印を付ける。
+    seeded: e.seeded === true,
     _purchaseId: e.purchase?.id,
   })).reverse();
   if (ledgerGridApi) { ledgerGridApi.setGridOption('rowData', rows);

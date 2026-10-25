@@ -2,30 +2,34 @@
 
 ## Elevator pitch
 
-Most "AI spending" demos prove an agent can pay. Tuesday proves it cannot. When a $42
-subscription renewal fails at 3 AM, three independent LLMs — Advocate, Auditor, Witness —
-argue retry / downgrade / release, and **nothing reaches PayPal unless all three agree and a
-human finishes the capture step in PayPal**. The vote, including the disagreement, is hashed into the PayPal order's
-`custom_id`, so the reason a payment was allowed is readable from the payment record itself.
+Most "AI spending" demos prove an agent can pay. Tuesday proves it usually cannot. When the
+restock agent wants to spend $42 out of a $200 monthly budget, three independent LLMs —
+Advocate, Auditor, Witness — argue for and against the purchase, and **no PayPal order is
+created unless the gates pass and the agents agree, and nothing is captured until a human
+finishes the payment in PayPal**. The vote, including the disagreement, is hashed into the
+PayPal order's `custom_id`, so the reason a payment was allowed is readable from the payment
+record itself.
 
 ---
 
 ## Inspiration
 
-Anna's skincare brand bills **$42 a month to 12,000 subscribers**. On a Tuesday at 3 AM one
-renewal fails — a card expires. The brand's software sends a generic "payment failed" email
-and waits.
+Anna's skincare brand runs **12,000 subscribers** on a **$200/month purchasing budget**.
+On a Tuesday at 3 AM the restock agent decides the Vitamin C serum is running low and wants
+to spend $42. Nobody is awake to approve it.
 
-**25–40% of subscription churn starts exactly there** — at a failed payment, not at a lost
-customer. The subscriber never chose to leave; the plumbing gave up.
+Give an agent a budget and it will eventually spend all of it. **The hard part is not letting
+it pay — it is giving it a defensible reason to stop.** The failure mode that costs real
+money is not a rogue agent emptying an account; it is a thousand defensible-looking small
+purchases that nobody audited, each one approved by a single model that was happy to help.
 
-We wanted to know what it looks like when the decision is not "retry the charge" but
-*a debate about whether to* retry. So we built the part everybody skips: the argument, and
-the record of it.
+We wanted to know what it looks like when the decision is not "can this be paid" but
+*should it be, and by whose authority*. So we built the part everybody skips: the argument,
+the gate that can veto it, and the record of both.
 
 ## What it does
 
-The demo opens on the story: **TUESDAY, 3 AM — A $42 RENEWAL JUST FAILED.**
+The demo opens on the question: **TUESDAY, 3 PM — CAN THE AGENT SPEND $42?**
 
 1. **Three agents take positions.** Advocate argues for the customer and the revenue.
    Auditor argues against spending money the budget does not have. Witness is neutral and
@@ -63,6 +67,29 @@ The demo opens on the story: **TUESDAY, 3 AM — A $42 RENEWAL JUST FAILED.**
 
 The whole thing is a zero-dependency Node.js server — `node demo/server.mjs`, then
 <http://localhost:8787>.
+
+## If the gates decide, are the models decoration?
+
+A judge asked us this directly, and it is the right question. No — and the split is
+deliberate:
+
+| | Deterministic gates (`G1`–`G5`) | The three LLMs |
+|---|---|---|
+| **Authority** | **Veto.** Arithmetic over money is never delegated to a model. | **No veto over arithmetic.** Cannot approve what a gate failed. |
+| **What they answer** | *Can* this be paid — is the amount positive, is the money there, is it under 50% of the budget, is it a repeat, does it survive a doubled price | *Should* this be paid, and under what conditions |
+| **Output** | `failedGates: ["G5_survives_double_cost"]` | An argument, and from the Witness, concrete `conditions` |
+| **Cannot do** | Explain itself, price a risk, write a condition | Override a failed gate |
+
+The Witness is where the models earn their place. When the vote splits it returns
+`conditions` a gate cannot produce: *"approve only if the $42 is split into two $21
+orders,"* *"approve if the category has not repeated inside 30 days."* A gate can only
+say pass or fail. The Witness turns a near-miss into a payment a human can actually
+sign — and that condition is stamped into the receipt, so it travels with the money.
+
+The safety property holds the other way: **the models can make a refusal more useful;
+they cannot make an approval happen.** With no API key at all, the deterministic engine
+returns the same verdicts, so a model outage — or a prompt injection hidden in a product
+listing — cannot talk the gates into releasing money.
 
 ## The part we are proudest of
 
@@ -120,10 +147,10 @@ We would rather a judge trust us than be surprised.
 
 | # | File | Caption |
 |---|---|---|
-| 1 | `01_main.png` | The demo opens on the story: a $42 renewal failed at 3 AM. Category, amount, monthly budget and what has already been spent are the only inputs. |
+| 1 | `01_main.png` | The demo opens on the question: can the agent spend $42? Category, amount, monthly budget and what has already been spent are the only inputs. |
 | 2 | `02_shop.png` | Give the agents a category and a budget. Candidate products come back with real photographs; the Tribunal judges every one of them. |
 | 3 | `03_denied.png` | A $90 charge against a $60 monthly budget. The Auditor and the Witness block it, and the dissent map names who disagreed and on which gate. |
-| 4 | `04_debate.png` | A $42 renewal comes back CONDITIONAL: one for, one against, one judging. The agents only ever propose. |
+| 4 | `04_debate.png` | A $42 purchase against a $60 budget comes back CONDITIONAL: one for, one against, one judging — and the Witness attaches a condition. The agents only ever propose. |
 | 5 | `05_timeline.png` | One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral. Open disputes stay flagged. |
 | 6 | `06_ledger.png` | Every decision, every vote, every receipt in one AG Grid dashboard. Each row carries the hash stamped into the PayPal order's `custom_id`. |
 | 7 | `07_proof.png` | Three claims, three tests, all runnable in the page: the money-gate suite (31 passed, 0 failed), the 4x4 verdict grid computed live, and a receipt re-hashed against the hash stored in the PayPal order's `custom_id`. |
@@ -132,5 +159,5 @@ We would rather a judge trust us than be surprised.
 ## Try it out
 
 - **Code:** https://github.com/Agentic-Guides/triad
-- **Video:** 2:33, 1080p — `devpost-media/tuesday_submission_v9_1080p.mp4` in the repo; YouTube link added at submission time.
+- **Video:** 2:50, 1080p — https://youtu.be/49eujv0VV0Y
 - **Run it:** `git clone`, then `node demo/server.mjs` → <http://localhost:8787>. No keys needed.
