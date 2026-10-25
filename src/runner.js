@@ -121,26 +121,83 @@ As the neutral judge, decide. Output JSON: {"verdict":"for"|"against","reasons":
   }
 
   _parse(agent, raw, purchase) {
-    try {
-      const m = raw.match(/\{[\s\S]*\}/);
-      const j = JSON.parse(m ? m[0] : raw);
+    const j = this._extractJson(raw);
+    if (j) {
       const verdict = (j.verdict || (agent.role === ROLES.AUDITOR ? 'against' : 'for')).toLowerCase();
       return {
         agent: agent.role,
         title: agent.title,
         stance: agent.stance,
         verdict: verdict === 'for' ? 'for' : verdict === 'against' ? 'against' : 'neutral',
-        reasons: Array.isArray(j.reasons) ? j.reasons : [String(j.reasons || '')],
+        reasons: Array.isArray(j.reasons) ? j.reasons.map(String) : [String(j.reasons ?? '')],
         conditions: j.conditions && j.conditions !== 'null' ? j.conditions : null,
         confidence: typeof j.confidence === 'number' ? j.confidence : 0.5,
         model: agent.model,
-      };
-    } catch {
-      return deterministicReason(agent, purchase) || {
-        agent: agent.role, title: agent.title, stance: agent.stance,
-        verdict: 'neutral', reasons: [raw.slice(0, 300)], conditions: null, confidence: 0.4,
-        model: agent.model,
+        parsed: true,
       };
     }
+
+    // ★ The model answered, but not in JSON. Fall back to the deterministic argument —
+    //   and SAY SO. The old code put the raw completion into `reasons`, so a witness that
+    //   replied with prose showed up on screen as a vote whose first "reason" was its own
+    //   source text. A reader cannot tell a parse failure from an argument that way.
+    const fallback = deterministicReason(agent, purchase) || {
+      agent: agent.role, title: agent.title, stance: agent.stance,
+      verdict: 'neutral', reasons: [], conditions: null, confidence: 0.4,
+    };
+    return {
+      ...fallback,
+      model: agent.model,
+      parsed: false,
+      rawExcerpt: String(raw || '').slice(0, 240),
+    };
+  }
+
+  /**
+   * Pull a JSON object out of a model response.
+   *
+   * Models wrap JSON in ```json fences, prepend "Here is my verdict:", or emit a
+   * trailing sentence. The previous regex grabbed from the first "{" to the LAST "}",
+   * which breaks as soon as the reply contains two objects or a brace inside a string.
+   * This walks the text and returns the first balanced object that actually parses.
+   */
+  _extractJson(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+
+    // 1. Straight parse, in case the model behaved.
+    try { return JSON.parse(s); } catch { /* keep going */ }
+
+    // 2. Strip a markdown fence if there is one.
+    const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fence) {
+      try { return JSON.parse(fence[1].trim()); } catch { /* keep going */ }
+    }
+
+    // 3. Balanced-brace scan, respecting strings and escapes.
+    for (let start = s.indexOf('{'); start !== -1; start = s.indexOf('{', start + 1)) {
+      let depth = 0, inStr = false, esc = false;
+      for (let i = start; i < s.length; i++) {
+        const ch = s[i];
+        if (inStr) {
+          if (esc) esc = false;
+          else if (ch === '\\') esc = true;
+          else if (ch === '"') inStr = false;
+          continue;
+        }
+        if (ch === '"') inStr = true;
+        else if (ch === '{') depth++;
+        else if (ch === '}') {
+          depth--;
+          if (depth === 0) {
+            try {
+              const obj = JSON.parse(s.slice(start, i + 1));
+              if (obj && typeof obj === 'object') return obj;
+            } catch { break; }
+          }
+        }
+      }
+    }
+    return null;
   }
 }
