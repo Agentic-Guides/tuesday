@@ -48,7 +48,7 @@ export class TriadRunner {
     return Boolean(this.apiKey);
   }
 
-  async _chat(agent, userPrompt) {
+  async _chat(agent, userPrompt, maxTokens = 400) {
     const res = await fetch(this.endpoint, {
       method: 'POST',
       headers: {
@@ -62,7 +62,12 @@ export class TriadRunner {
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.4,
-        max_tokens: 400,
+        // ★ A dispute argument is longer than a purchase vote: it has to cite evidence
+        //   and still close its JSON. At 400 tokens the reply was truncated mid-object,
+        //   _parse saw an unbalanced brace, and the argument came back parsed:false with
+        //   empty cites — which the gate then (correctly) refused. The truncation was the
+        //   bug; the refusal was the gate doing its job.
+        max_tokens: maxTokens,
       }),
     });
     if (!res.ok) throw new Error(`LLM ${res.status}: ${await res.text()}`);
@@ -105,6 +110,73 @@ As the neutral judge, decide. Output JSON: {"verdict":"for"|"against","reasons":
     const witness = this._parse(this.agents.witness, witnessRaw, purchase);
 
     return { advocate, auditor, witness, engine: 'llm' };
+  }
+
+  /**
+   * The three agents argue about a dispute instead of a purchase.
+   *
+   * Same rule as debate(): each agent may only cite evidence IDs, and the arbiter must
+   * return one of the four actions. If a model returns prose, _parse marks it
+   * parsed:false and the deterministic argument stands in — the gate refuses an
+   * uncited argument either way, so a chatty model cannot quietly authorise a refund.
+   */
+  async debateDispute({ dispute, evidence }) {
+    if (!this.live) return null;
+
+    const ctx = [
+      'DISPUTE',
+      `- Dispute ID: ${dispute?.dispute_id || dispute?.id || 'unknown'}`,
+      `- Reason: ${evidence.reason}`,
+      `- Amount: $${Number(evidence.amount).toFixed(2)}`,
+      `- Buyer says: "${String(dispute?.buyer_message || dispute?.message || '').slice(0, 400)}"`,
+      '',
+      'EVIDENCE (cite these IDs, never invent one):',
+      ...evidence.items.map((i) => `- ${i.id} [${i.ok ? 'AVAILABLE' : 'MISSING'}] ${i.label}: ${i.detail}`),
+    ].join('\n');
+
+    const schema = '{"action":"CONTEST|OFFER_PARTIAL|REFUND|ACCEPT|ESCALATE","reasons":["..."],"cites":["E1"],"confidence":0.0-1.0}';
+
+    const [advRaw, chRaw] = await Promise.all([
+      this._chat(this.agents.advocate,
+        `${ctx}\n\nYou represent the MERCHANT. Give at most 3 reasons, one sentence each, and cite evidence IDs only. ` +
+        `Reply with the JSON object and nothing else — no preamble, no markdown fence, no closing remark. Schema: ${schema}`, 700),
+      this._chat(this.agents.auditor,
+        `${ctx}\n\nYou represent the BUYER. Give at most 3 reasons, one sentence each, and cite evidence IDs only. ` +
+        `Reply with the JSON object and nothing else — no preamble, no markdown fence, no closing remark. Schema: ${schema}`, 700),
+    ]);
+
+    const advocate = this._parseDispute(this.agents.advocate, advRaw);
+    const challenger = this._parseDispute(this.agents.auditor, chRaw);
+
+    const arbiterRaw = await this._chat(this.agents.witness,
+      `${ctx}\n\nMERCHANT argued: ${JSON.stringify(advocate.reasons)}\nBUYER argued: ${JSON.stringify(challenger.reasons)}\n\n` +
+      `As the neutral arbiter, decide what the merchant should do. CONTEST only if the required evidence for this reason is present. ` +
+      `Give at most 3 reasons, one sentence each. Reply with the JSON object and nothing else. Schema: ${schema}`, 700);
+
+    const arbiter = this._parseDispute(this.agents.witness, arbiterRaw);
+    return { advocate, challenger, arbiter, engine: 'llm' };
+  }
+
+  _parseDispute(agent, raw) {
+    const j = this._extractJson(raw);
+    const ACTIONS = ['CONTEST', 'OFFER_PARTIAL', 'REFUND', 'ACCEPT', 'ESCALATE'];
+    if (j && ACTIONS.includes(String(j.action || '').toUpperCase())) {
+      return {
+        role: agent.role,
+        action: String(j.action).toUpperCase(),
+        reasons: Array.isArray(j.reasons) ? j.reasons.map(String) : [String(j.reasons ?? '')],
+        cites: Array.isArray(j.cites) ? j.cites.map(String) : [],
+        confidence: typeof j.confidence === 'number' ? j.confidence : 0.5,
+        model: agent.model,
+        parsed: true,
+      };
+    }
+    // Unparseable: mark it, so the gate sees an uncited argument and refuses it.
+    return {
+      role: agent.role, action: 'OFFER_PARTIAL', reasons: [], cites: [],
+      confidence: 0.3, model: agent.model, parsed: false,
+      rawExcerpt: String(raw || '').slice(0, 200),
+    };
   }
 
   _purchaseContext(p) {

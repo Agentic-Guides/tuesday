@@ -130,6 +130,65 @@ export class PayPalClient {
     return this._req('GET', `/v2/checkout/orders/${orderId}`, null);
   }
 
+  /* ── Disputes (customer-disputes v1) ──────────────────────────────────────
+   * PayPal's dispute surface, as far as a merchant can use it:
+   *   list       GET  /v1/customer/disputes
+   *   get        GET  /v1/customer/disputes/{id}
+   *   accept     POST /v1/customer/disputes/{id}/accept-claim
+   *   offer      POST /v1/customer/disputes/{id}/make-offer
+   *   evidence   POST /v1/customer/disputes/{id}/provide-evidence
+   *   escalate   POST /v1/customer/disputes/{id}/escalate
+   *
+   * Creating a dispute is sandbox-only and needs buyer-side scopes this app does
+   * not have, so Tuesday never creates one — it reads them and responds to them.
+   * That is the merchant's real job anyway.
+   */
+
+  async listDisputes({ pageSize = 20, status = null } = {}) {
+    const q = new URLSearchParams({ page_size: String(pageSize) });
+    if (status) q.set('dispute_state', status);
+    return this._req('GET', `/v1/customer/disputes?${q.toString()}`, null);
+  }
+
+  async getDispute(disputeId) {
+    return this._req('GET', `/v1/customer/disputes/${encodeURIComponent(disputeId)}`, null);
+  }
+
+  async acceptDisputeClaim(disputeId, { note = null } = {}) {
+    const body = {};
+    if (note) body.note = note;
+    return this._req('POST', `/v1/customer/disputes/${encodeURIComponent(disputeId)}/accept-claim`,
+                     body, `accept-${disputeId}`);
+  }
+
+  async makeDisputeOffer(disputeId, { amount, currency = 'USD', note = null } = {}) {
+    const body = {
+      note: note || 'Offer from the merchant.',
+      offer_type: 'REFUND',
+      offer_amount: { currency_code: currency, value: Number(amount).toFixed(2) },
+    };
+    return this._req('POST', `/v1/customer/disputes/${encodeURIComponent(disputeId)}/make-offer`,
+                     body, `offer-${disputeId}`);
+  }
+
+  async provideDisputeEvidence(disputeId, { evidenceType = 'PROOF_OF_FULFILLMENT', notes = '', documents = [] } = {}) {
+    const body = {
+      evidence_type: evidenceType,
+      evidence_info: { tracking_info: [], refund_ids: [] },
+      notes,
+      documents: documents.slice(0, 10),
+    };
+    return this._req('POST', `/v1/customer/disputes/${encodeURIComponent(disputeId)}/provide-evidence`,
+                     body, `evidence-${disputeId}`);
+  }
+
+  async escalateDispute(disputeId, { note = null } = {}) {
+    const body = {};
+    if (note) body.note = note;
+    return this._req('POST', `/v1/customer/disputes/${encodeURIComponent(disputeId)}/escalate`,
+                     body, `escalate-${disputeId}`);
+  }
+
   async _req(method, path, body, requestId) {
     if (this.mock) return this._mockResponse(method, path, body);
 
