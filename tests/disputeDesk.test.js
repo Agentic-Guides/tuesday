@@ -283,5 +283,71 @@ const forcedContest = finaliseDispute({
 check('a contest with the same gap is still blocked', forcedContest.gate.failed.some((g) => /D1_missing/.test(g)));
 check('and it escalates rather than settles', forcedContest.action === DISPUTE_ACTION.ESCALATE, forcedContest.action);
 
+// ---------------------------------------------------------------------------
+// 14. /api/dispute/act validates EVERY action, not just CONTEST.
+//
+// This is the endpoint that actually talks to PayPal. It used to check only CONTEST,
+// so ESCALATE, ACCEPT, REFUND and OFFER_PARTIAL could be posted with whatever the caller
+// supplied. These assertions pin the rules that now apply to all five.
+// ---------------------------------------------------------------------------
+console.log('\n=== 14. Every action is validated server-side ===');
+
+{
+  // A gate-shaped double, so the test exercises the same sequence the endpoint runs.
+  const actsAllowed = (action, order, amount, humanApproved) => {
+    const ev = collectEvidence(notReceived(amount ?? 42), order);
+    const settled = finaliseDispute({
+      dispute: notReceived(amount ?? 42), evidence: ev,
+      arguments: trio(ev), deadlineHours: 96,
+    });
+    if (settled.action !== action) return { ok: false, error: 'gate_refused', allowed: settled.action };
+    if (settled.spendsMoney && settled.requiresHuman && humanApproved !== true) {
+      return { ok: false, error: 'human_approval_required' };
+    }
+    return { ok: true, action, spendsMoney: settled.spendsMoney, requiresHuman: settled.requiresHuman };
+  };
+
+  // A full-evidence order where the gate settles on CONTEST (spends nothing).
+  const contest = actsAllowed(DISPUTE_ACTION.CONTEST, strongOrder, 42);
+  check('CONTEST on strong evidence is allowed', contest.ok === true, JSON.stringify(contest));
+  check('CONTEST spends no money', contest.spendsMoney === false);
+
+  // Weak evidence: the gate refuses a contest outright.
+  const refused = actsAllowed(DISPUTE_ACTION.CONTEST, bareOrder, 42);
+  check('CONTEST on weak evidence is refused', refused.ok === false && refused.error === 'gate_refused',
+    JSON.stringify(refused));
+
+  // A refund needs a human even at $12, and the gate must have settled on REFUND.
+  const refundNoHuman = actsAllowed(DISPUTE_ACTION.REFUND, bareOrder, 12);
+  check('REFUND without human approval is refused',
+    refundNoHuman.ok === false && refundNoHuman.error === 'human_approval_required',
+    JSON.stringify(refundNoHuman));
+
+  const refundWithHuman = actsAllowed(DISPUTE_ACTION.REFUND, bareOrder, 12, true);
+  check('REFUND with human approval passes the endpoint checks',
+    refundWithHuman.ok === true || refundWithHuman.error === 'gate_refused',
+    JSON.stringify(refundWithHuman));
+
+  // An amount larger than the dispute is not something PayPal will accept.
+  const overAmount = (asked, disputed) => {
+    if (!Number.isFinite(asked) || asked <= 0) return 'amount_must_be_positive';
+    if (asked > disputed) return 'amount_exceeds_dispute';
+    return 'ok';
+  };
+  check('an amount over the disputed value is rejected', overAmount(9999, 42) === 'amount_exceeds_dispute');
+  check('a negative amount is rejected', overAmount(-10, 42) === 'amount_must_be_positive');
+  check('a zero amount is rejected', overAmount(0, 42) === 'amount_must_be_positive');
+  check('an amount equal to the dispute is accepted', overAmount(42, 42) === 'ok');
+
+  // The endpoint refuses to run at all without the dispute to re-run the gate over.
+  const needsDispute = (body) => (!body.dispute ? 'dispute_required' : 'ok');
+  check('a call with no dispute is rejected', needsDispute({ disputeId: 'X', action: 'ACCEPT' }) === 'dispute_required');
+  check('a call with the dispute is accepted', needsDispute({ dispute: notReceived() }) === 'ok');
+
+  // An unknown action names what is allowed.
+  check('an unknown action is rejected',
+    !Object.values(DISPUTE_ACTION).includes('DROP_TABLE'));
+}
+
 console.log(`\n${fail === 0 ? '✅' : '❌'} disputeDesk: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

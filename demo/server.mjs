@@ -382,54 +382,95 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       const { disputeId, action, amount } = body || {};
 
-      // The gate is re-run here on purpose: a client must not be able to POST an action
-      // the gate would have refused. Never trust the caller's own verdict.
+      // ── Validation, applied to EVERY action ──────────────────────────────────
+      // This endpoint used to check only CONTEST, which meant ESCALATE, ACCEPT, REFUND
+      // and OFFER_PARTIAL could be posted with whatever the caller liked. The rule now is
+      // the same for all five: rebuild the evidence from the payment record, run the
+      // gate, and refuse anything the gate would not allow. A client's own verdict is
+      // never trusted — it is not even read.
       if (!disputeId || !action) return json(res, 400, { error: 'disputeId and action are required' });
       if (!Object.values(DISPUTE_ACTION).includes(action)) {
-        return json(res, 400, { error: 'unknown action' });
+        return json(res, 400, { error: 'unknown action', allowed: Object.values(DISPUTE_ACTION) });
       }
-      // CONTEST submits the evidence. It was previously rejected here with a 400, which
-      // meant "CONTEST runs without a human" described a capability that did not exist:
-      // the one action allowed to execute automatically could not execute at all. It now
-      // calls provide-evidence, and the notes it sends are the merchant advocate's
-      // reasoning with its citations, so what PayPal receives is what the gate approved.
-      if (action === DISPUTE_ACTION.ESCALATE) {
-        const out = await triad._paypal.escalateDispute
-          ? await triad._paypal.escalateDispute(disputeId, { note: body.note || null })
-          : { ok: true, mock: true };
-        return json(res, 200, { ok: true, action, disputeId, mode: triad._paypal.mode, paypal: out });
-      }
-
-      if (action === DISPUTE_ACTION.CONTEST) {
-        // Re-run the gate over the evidence the caller claims to be citing. Without this
-        // a client could POST "CONTEST" for a dispute whose evidence is missing, and the
-        // one automatic action would be the one with no check behind it.
-        // It needs the dispute; the evidence is rebuilt here from the order rather than
-        // trusted from the caller, so a client cannot supply a flattering evidence set.
-        if (!body.dispute) {
-          return json(res, 400, { error: 'CONTEST needs the dispute and its order; call /api/dispute/review first' });
-        }
-
-        const ev = collectEvidence(body.dispute, body.order || body.dispute.order || null);
-        const args = body.arguments || {
-          advocate: deterministicDisputeReasoning('advocate', ev),
-          challenger: deterministicDisputeReasoning('challenger', ev),
-          arbiter: deterministicDisputeReasoning('arbiter', ev),
-        };
-        const settled = finaliseDispute({
-          dispute: body.dispute, evidence: ev, arguments: args,
-          deadlineHours: body.deadlineHours ?? body.dispute.deadlineHours ?? null,
+      if (!body.dispute) {
+        return json(res, 400, {
+          error: 'the dispute is required: the gate is re-run here and cannot be re-run without it',
+          hint: 'pass the dispute object returned by GET /api/disputes',
         });
-        if (settled.action !== DISPUTE_ACTION.CONTEST) {
-          return json(res, 200, {
-            ok: false, error: 'gate_refused', action: settled.action,
-            gate: settled.gate, note: 'The gate will not let this dispute be contested.',
+      }
+
+      const order = body.order || body.dispute.order || null;
+
+      // An amount-bearing action needs an amount, and it cannot exceed the dispute.
+      if (action === DISPUTE_ACTION.OFFER_PARTIAL || action === DISPUTE_ACTION.REFUND) {
+        const disputed = Number(body.dispute.amount ?? body.dispute.dispute_amount?.value ?? 0);
+        const asked = amount == null ? disputed : Number(amount);
+        if (!Number.isFinite(asked) || asked <= 0) {
+          return json(res, 400, { error: 'amount must be a positive number', amount: amount ?? null });
+        }
+        if (asked > disputed) {
+          return json(res, 400, {
+            error: 'amount exceeds the disputed amount',
+            amount: asked, disputed,
+            note: 'PayPal will not refund or offer more than was disputed.',
           });
         }
+      }
 
-        // The notes PayPal receives are the argument the gate approved, citations included.
+      // Rebuild the evidence from the record, never from the caller.
+      const ev = collectEvidence(body.dispute, order);
+      const args = body.arguments || {
+        advocate: deterministicDisputeReasoning('advocate', ev),
+        challenger: deterministicDisputeReasoning('challenger', ev),
+        arbiter: deterministicDisputeReasoning('arbiter', ev),
+      };
+      const settled = finaliseDispute({
+        dispute: body.dispute, evidence: ev, arguments: args,
+        deadlineHours: body.deadlineHours ?? body.dispute.deadlineHours ?? null,
+      });
+
+      // The gate decides what may be executed. If it settled on something else — an
+      // ESCALATE because a citation was unsupported, a downgrade because evidence is
+      // missing — then the requested action is not available, full stop.
+      if (settled.action !== action) {
+        return json(res, 200, {
+          ok: false, error: 'gate_refused',
+          requested: action, allowed: settled.action,
+          gate: { passed: settled.gate.passed, failed: settled.gate.failed },
+          requiresHuman: settled.requiresHuman,
+          spendsMoney: settled.spendsMoney,
+          note: 'The gate did not allow this action. Nothing was sent to PayPal.',
+        });
+      }
+
+      // Anything that sends money to the buyer needs a human, whatever the amount.
+      if (settled.spendsMoney && settled.requiresHuman && body.humanApproved !== true) {
+        return json(res, 200, {
+          ok: false, error: 'human_approval_required',
+          requested: action, amount: amount ?? settled.amount,
+          gate: { passed: settled.gate.passed, failed: settled.gate.failed },
+          note: 'This action moves money to the buyer. Confirm it with humanApproved: true '
+              + 'after a person has actually approved it.',
+        });
+      }
+
+      // ── Execution ────────────────────────────────────────────────────────────
+      const isReal = !String(disputeId).startsWith('SAMPLE-');
+      if (!isReal) {
+        return json(res, 200, {
+          ok: false, error: 'sample_dispute', action, disputeId,
+          note: 'This is a labelled sample; there is no PayPal dispute to act on.',
+        });
+      }
+      const dryRun = !liveWritesAllowed();
+
+      // What would be sent, per action. Built once so the dry run and the live call
+      // cannot describe different requests.
+      let planned;
+      let notes = null;
+      if (action === DISPUTE_ACTION.CONTEST) {
         const advocate = settled.arguments?.advocate || {};
-        const notes = [
+        notes = [
           ...((advocate.reasons || []).slice(0, 5)),
           '',
           'Cited evidence:',
@@ -438,81 +479,70 @@ const server = createServer(async (req, res) => {
             return item ? `- ${item.id} (${item.label}): ${item.detail}` : `- ${id}`;
           }),
           '',
-          `Decision stamp: ${body.customId || '(not supplied)'}`,
+          `Decision stamp: ${order?.custom_id || '(none)'}`,
         ].join('\n').slice(0, 2000);
-
-        // The tracking the merchant actually holds travels with the evidence: PayPal
-        // requires a carrier from its own enum plus a tracking number, and does not
-        // accept an empty tracking_info array.
         const trackingItem = ev.items.find((x) => x.id === 'E4');
-        const rawTracking = body.order?.tracking || body.dispute?.order?.tracking || null;
-        if (isRealDisputeForContest(disputeId) && !liveWritesAllowed()) {
-          return json(res, 200, {
-            ok: true, dryRun: true, action, disputeId, mode: triad._paypal.mode,
-            wouldSend: { method: 'POST', path: `/v1/customer/disputes/${disputeId}/provide-evidence`,
-                         evidence_type: body.evidenceType || 'PROOF_OF_FULFILLMENT', notes },
-            citations: advocate.cites || [],
-            note: 'Dry run: provide-evidence was assembled and gated but not sent.',
-          });
-        }
-
-        const out = await triad._paypal.provideDisputeEvidence
-          ? await triad._paypal.provideDisputeEvidence(disputeId, {
-              evidenceType: body.evidenceType || 'PROOF_OF_FULFILLMENT',
-              notes,
-              ...(trackingItem && trackingItem.ok && rawTracking ? { tracking: rawTracking } : {}),
-            })
-          : { ok: true, mock: true };
-
-        return json(res, 200, {
-          ok: true, action, disputeId, mode: triad._paypal.mode,
-          citations: advocate.cites || [], notesSent: notes, paypal: out,
-        });
+        const rawTracking = order?.tracking || null;
+        planned = {
+          method: 'POST',
+          path: `/v1/customer/disputes/${disputeId}/provide-evidence`,
+          evidence_type: body.evidenceType || 'PROOF_OF_FULFILLMENT',
+          ...(trackingItem && trackingItem.ok && rawTracking ? { tracking: rawTracking } : {}),
+          notes,
+        };
+      } else if (action === DISPUTE_ACTION.ESCALATE) {
+        planned = { method: 'POST', path: `/v1/customer/disputes/${disputeId}/escalate`,
+                    body: { note: body.note || null } };
+      } else if (action === DISPUTE_ACTION.ACCEPT) {
+        planned = { method: 'POST', path: `/v1/customer/disputes/${disputeId}/accept-claim`,
+                    body: { note: body.note || null } };
+      } else {
+        const asked = amount == null ? settled.amount : Number(amount);
+        planned = { method: 'POST', path: `/v1/customer/disputes/${disputeId}/make-offer`,
+                    body: { amount: asked, currency: settled.currency, note: body.note || null } };
       }
-
-      // ── Dry-run guard ────────────────────────────────────────────────────────
-      // The hosted demo shows one real dispute. If a stranger could POST accept-claim
-      // against it, the demo's centrepiece would be closed by the first person who
-      // pressed the button — and every judge after them would see an empty desk. So a
-      // write against a REAL PayPal dispute is dry-run unless the deployment explicitly
-      // opts in with ALLOW_LIVE_DISPUTE_WRITES=1 (the hosted demo does not). The response
-      // still shows exactly what would have been sent, which is more useful to a reader
-      // than a silent success anyway. Samples are not real disputes, so they are never
-      // sent to PayPal regardless.
-      const isRealDispute = !String(disputeId).startsWith('SAMPLE-');
-      const dryRun = isRealDispute && !liveWritesAllowed();
-
-      const planned = action === DISPUTE_ACTION.ACCEPT
-        ? { method: 'POST', path: `/v1/customer/disputes/${disputeId}/accept-claim`,
-            body: { note: body.note || null } }
-        : { method: 'POST', path: `/v1/customer/disputes/${disputeId}/make-offer`,
-            body: { amount, note: body.note || null } };
 
       if (dryRun) {
         return json(res, 200, {
           ok: true, dryRun: true, action, disputeId, mode: triad._paypal.mode,
+          gate: { passed: settled.gate.passed, failed: settled.gate.failed },
+          citations: settled.arguments?.advocate?.cites || [],
           wouldSend: planned,
           note: 'Dry run: this deployment does not write to real PayPal disputes. '
               + 'Set ALLOW_LIVE_DISPUTE_WRITES=1 to enable it where you own the account.',
         });
       }
 
-      if (isRealDispute === false) {
-        return json(res, 200, {
-          ok: false, error: 'sample_dispute', action, disputeId,
-          note: 'This is a labelled sample; there is no PayPal dispute to act on.',
+      let out;
+      if (action === DISPUTE_ACTION.CONTEST) {
+        out = await triad._paypal.provideDisputeEvidence(disputeId, {
+          evidenceType: planned.evidence_type,
+          notes,
+          ...(planned.tracking ? { tracking: planned.tracking } : {}),
         });
+      } else if (action === DISPUTE_ACTION.ESCALATE) {
+        out = await triad._paypal.escalateDispute(disputeId, { note: body.note || null });
+      } else if (action === DISPUTE_ACTION.ACCEPT) {
+        out = await triad._paypal.acceptDisputeClaim(disputeId, { note: body.note || null });
+      } else {
+        out = await triad._paypal.makeDisputeOffer(disputeId, { amount: planned.body.amount, note: body.note || null });
       }
 
-      const out = await triad._paypal.acceptDisputeClaim
-        ? (action === DISPUTE_ACTION.ACCEPT
-            ? await triad._paypal.acceptDisputeClaim(disputeId, { note: body.note || null })
-            : await triad._paypal.makeDisputeOffer(disputeId, { amount, note: body.note || null }))
-        : { ok: true, mock: true };
-
-      return json(res, 200, { ok: true, action, disputeId, mode: triad._paypal.mode, paypal: out });
+      return json(res, 200, {
+        ok: true, action, disputeId, mode: triad._paypal.mode,
+        gate: { passed: settled.gate.passed, failed: settled.gate.failed },
+        sent: planned,
+        paypal: out,
+      });
     } catch (e) {
       if (e instanceof BadRequest) return json(res, 400, { error: e.message });
+      if (e && e.status) {
+        console.error('[api] dispute act refused by PayPal:', e.issue || e.status);
+        return json(res, e.status, {
+          ok: false, error: 'paypal_refused', issue: e.issue || null,
+          status: e.status, message: String(e.message).slice(0, 400),
+        });
+      }
       console.error('[api] dispute act failed:', e && e.message ? e.message : e);
       return json(res, 500, { error: 'internal error' });
     }
