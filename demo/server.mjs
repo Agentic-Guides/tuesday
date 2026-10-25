@@ -79,6 +79,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/adjudicate') {
+    { const limited = rateLimited(req, 'expensive'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
       const body = await readJson(req);
       const result = await triad.triadAdjudicate(body);
@@ -154,6 +155,7 @@ const server = createServer(async (req, res) => {
   // ledger entry rather than a live pending order is what lets a judge verify a
   // decision made an hour ago.
   if (req.method === 'POST' && url.pathname === '/api/verify-ledger') {
+    { const limited = rateLimited(req, 'read'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
       const body = await readJson(req);
       const entries = triad.triadGetLedger().entries || [];
@@ -195,6 +197,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/shop') {
+    { const limited = rateLimited(req, 'expensive'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
       const body = await readJson(req); return json(res, 200, await commerce.triadShop(body)); }
     catch (e) {
@@ -205,6 +208,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/order') {
+    { const limited = rateLimited(req, 'expensive'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
       const body = await readJson(req); return json(res, 200, await triad.triadCreateOrder(body)); }
     catch (e) {
@@ -215,6 +219,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/capture') {
+    { const limited = rateLimited(req, 'expensive'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
       const body = await readJson(req); return json(res, 200, await triad.triadCaptureOrder(body)); }
     catch (e) {
@@ -261,6 +266,7 @@ const server = createServer(async (req, res) => {
    * what a merchant does.
    */
   if (req.method === 'GET' && url.pathname === '/api/disputes') {
+    { const limited = rateLimited(req, 'read'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
       const live = triad._paypal.mode !== 'MOCK';
       let items = [];
@@ -294,6 +300,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/dispute/review') {
+    { const limited = rateLimited(req, 'expensive'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
       const body = await readJson(req);
       const dispute = body.dispute || {};
@@ -330,6 +337,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/dispute/act') {
+    { const limited = rateLimited(req, 'expensive'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
       const body = await readJson(req);
       const { disputeId, action, amount } = body || {};
@@ -398,6 +406,16 @@ const server = createServer(async (req, res) => {
         // accept an empty tracking_info array.
         const trackingItem = ev.items.find((x) => x.id === 'E4');
         const rawTracking = body.order?.tracking || body.dispute?.order?.tracking || null;
+        if (isRealDisputeForContest(disputeId) && !liveWritesAllowed()) {
+          return json(res, 200, {
+            ok: true, dryRun: true, action, disputeId, mode: triad._paypal.mode,
+            wouldSend: { method: 'POST', path: `/v1/customer/disputes/${disputeId}/provide-evidence`,
+                         evidence_type: body.evidenceType || 'PROOF_OF_FULFILLMENT', notes },
+            citations: advocate.cites || [],
+            note: 'Dry run: provide-evidence was assembled and gated but not sent.',
+          });
+        }
+
         const out = await triad._paypal.provideDisputeEvidence
           ? await triad._paypal.provideDisputeEvidence(disputeId, {
               evidenceType: body.evidenceType || 'PROOF_OF_FULFILLMENT',
@@ -409,6 +427,40 @@ const server = createServer(async (req, res) => {
         return json(res, 200, {
           ok: true, action, disputeId, mode: triad._paypal.mode,
           citations: advocate.cites || [], notesSent: notes, paypal: out,
+        });
+      }
+
+      // ── Dry-run guard ────────────────────────────────────────────────────────
+      // The hosted demo shows one real dispute. If a stranger could POST accept-claim
+      // against it, the demo's centrepiece would be closed by the first person who
+      // pressed the button — and every judge after them would see an empty desk. So a
+      // write against a REAL PayPal dispute is dry-run unless the deployment explicitly
+      // opts in with ALLOW_LIVE_DISPUTE_WRITES=1 (the hosted demo does not). The response
+      // still shows exactly what would have been sent, which is more useful to a reader
+      // than a silent success anyway. Samples are not real disputes, so they are never
+      // sent to PayPal regardless.
+      const isRealDispute = !String(disputeId).startsWith('SAMPLE-');
+      const dryRun = isRealDispute && !liveWritesAllowed();
+
+      const planned = action === DISPUTE_ACTION.ACCEPT
+        ? { method: 'POST', path: `/v1/customer/disputes/${disputeId}/accept-claim`,
+            body: { note: body.note || null } }
+        : { method: 'POST', path: `/v1/customer/disputes/${disputeId}/make-offer`,
+            body: { amount, note: body.note || null } };
+
+      if (dryRun) {
+        return json(res, 200, {
+          ok: true, dryRun: true, action, disputeId, mode: triad._paypal.mode,
+          wouldSend: planned,
+          note: 'Dry run: this deployment does not write to real PayPal disputes. '
+              + 'Set ALLOW_LIVE_DISPUTE_WRITES=1 to enable it where you own the account.',
+        });
+      }
+
+      if (isRealDispute === false) {
+        return json(res, 200, {
+          ok: false, error: 'sample_dispute', action, disputeId,
+          note: 'This is a labelled sample; there is no PayPal dispute to act on.',
         });
       }
 
@@ -427,6 +479,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/verify') {
+    { const limited = rateLimited(req, 'read'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
       const body = await readJson(req); return json(res, 200, await triad.triadVerifyReceipt(body)); }
     catch (e) {
@@ -567,6 +620,64 @@ function json(res, code, obj) {
  *  larger is either a mistake or a denial-of-service attempt. Without a cap,
  *  readJson() buffers until the process runs out of memory. */
 const MAX_BODY_BYTES = 64 * 1024; // 64 KB
+
+/** Per-IP rate limiting.
+ *
+ *  The hosted demo holds a live LLM key and a live PayPal sandbox credential, and every
+ *  call spends one or the other. Without a ceiling, a stranger finding the URL can drain
+ *  both — and on a free Render instance it also takes the demo down for the judge who
+ *  arrives next. Two windows: a tight one for anything that calls a model or PayPal, and
+ *  a looser one for reads.
+ */
+const RATE_LIMITS = {
+  expensive: { windowMs: 60_000, max: 12 },   // adjudicate, dispute review/act, order, capture
+  read:      { windowMs: 60_000, max: 120 },  // ledger, shop, mode, disputes list, proof
+};
+
+const _hits = new Map(); // ip -> { bucket -> [timestamps] }
+
+function rateLimited(req, bucketName) {
+  const cfg = RATE_LIMITS[bucketName];
+  if (!cfg) return null;
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+    || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const per = _hits.get(ip) || {};
+  const stamps = (per[bucketName] || []).filter((t) => now - t < cfg.windowMs);
+  stamps.push(now);
+  per[bucketName] = stamps;
+  _hits.set(ip, per);
+
+  // Bound the map so a flood cannot grow it without limit.
+  if (_hits.size > 5000) {
+    for (const [k, v] of _hits) {
+      if (Object.values(v).every((arr) => arr.every((t) => now - t > cfg.windowMs))) _hits.delete(k);
+    }
+  }
+
+  if (stamps.length > cfg.max) {
+    return {
+      error: 'rate_limited',
+      bucket: bucketName,
+      limit: cfg.max,
+      windowSeconds: cfg.windowMs / 1000,
+      retryAfterSeconds: Math.ceil((cfg.windowMs - (now - stamps[0])) / 1000),
+    };
+  }
+  return null;
+}
+
+/** True when this process is allowed to change state in the live PayPal account.
+ *
+ *  The hosted demo must not let a stranger close the one real dispute it is showing. Reads
+ *  stay live — a judge needs to see the real thing — but writes are dry-run unless
+ *  ALLOW_LIVE_DISPUTE_WRITES=1 is set on the deployment, which the hosted demo is not.
+ */
+function isRealDisputeForContest(id) { return !String(id).startsWith('SAMPLE-'); }
+
+function liveWritesAllowed() {
+  return String(process.env.ALLOW_LIVE_DISPUTE_WRITES || '').trim() === '1';
+}
 
 class BadRequest extends Error {}
 

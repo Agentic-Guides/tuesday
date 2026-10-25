@@ -1,0 +1,81 @@
+{
+  "dispute_id": "PP-R-IAL-10194452",
+  "create_time": "2026-10-25T04:11:36.362Z",
+  "update_time": "2026-10-25T04:12:13.541Z",
+  "disputed_transactions": [
+    {
+      "buyer_transaction_id": "08G677751X507134K",
+      "seller_transaction_id": "76L93143X4082031L",
+      "create_time": "2026-10-25T04:06:26.000Z",
+      "transaction_status": "COMPLETED",
+      "gross_amount": {
+        "currency_code": "USD",
+        "value": "42.00"
+      },
+      "custom": "triad1:disputetest0003",
+      "buyer": {
+        "email": "sb-nsf...@example.com",
+        "payer_id": "NAGQ...SNNU",
+        "name": "Doe John"
+      },
+      "seller": {
+        "email": "sb-htj...@example.com",
+        "merchant_id": "MAKU...H6AS",
+        "name": "Test Store"
+      },
+      "items": [
+        {
+          "item_name": "Hyaluronic Acid Serum 30ml",
+          "item_description": "Hyaluronic Acid Serum 30ml",
+          "item_quantity": "1",
+          "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+          "item_type": "PRODUCT"
+        }
+      ],
+      "seller_protection_eligible": false
+    }
+  ],
+  "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+  "status": "OPEN",
+  "dispute_amount": {
+    "currency_code": "USD",
+    "value": "42.00"
+  },
+  "dispute_state": "UNDER_PAYPAL_REVIEW",
+  "dispute_life_cycle_stage": "CHARGEBACK",
+  "dispute_channel": "INTERNAL",
+  "extensions": {
+    "merchant_contacted": true,
+    "buyer_contacted_time": "2026-10-25T04:11:35.667Z"
+  },
+  "evidences": [
+    {
+      "evidence_type": "CREATE",
+      "notes": "The parcel never arrived. I contacted the seller twice with no reply. Please help me get a refund of 42.00 USD.",
+      "source": "SUBMITTED_BY_BUYER",
+      "date": "2026-10-25T04:11:36.362Z",
+      "dispute_life_cycle_stage": "CHARGEBACK"
+    }
+  ],
+  "offer": {
+    "buyer_requested_amount": {
+      "currency_code": "USD",
+      "value": "42.00"
+    }
+  },
+  "refund_details": {
+    "allowed_refund_amount": {
+      "currency_code": "USD",
+      "value": "42.00"
+    }
+  },
+  "links": [
+    {
+      "href": "https://api-m.sandbox.paypal.com/v1/customer/disputes/PP-R-IAL-10194452",
+      "rel": "self",
+      "method": "GET"
+    }
+  ],
+  "_source": "PayPal sandbox, GET /v1/customer/disputes/PP-R-IAL-10194452",
+  "_note": "A real dispute, captured once so the desk can be demonstrated even after the sandbox case is resolved. Emails and payer ids are masked."
+}

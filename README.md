@@ -140,26 +140,27 @@ Tuesday governs money in two places: **before it moves** (an agent wants to spen
 
 ## Who this is for
 
-**US subscription brands selling physical goods** — skincare, supplements, consumables — the
-operator who loses real revenue every month to renewals that quietly fail, and cannot chase every
-declined card by hand.
+**Merchants whose software now spends money.** Once an agent can buy on a brand's behalf, somebody
+has to answer "was this purchase allowed, and who said so" — and today nobody does. Tuesday is for
+the operator who wants an agent doing the buying without handing it an unbounded card.
 
-**And the subscriber on the other side** of that renewal, who should never be re-billed without
-seeing why, and should always be able to say *no*.
+**And the buyer on the other side**, who should never have a payment taken without a record of why
+it was allowed, and who needs an answer that cites evidence when they dispute it.
 
-> **The story, in one line:** *A failed $42 renewal on Tuesday becomes a reviewed, provable,
-> human-approved payment — without the customer ever being lost to a silent decline.*
+> **The story, in one line:** *An agent tries to spend $42. Three independent models argue, a
+> deterministic gate decides, PayPal settles — and the same receipt becomes the evidence when the
+> buyer disputes the payment weeks later.*
 
 ## How a brand actually uses this, start to finish
 
 Five steps. The first four take about a minute; the fifth is the one that matters.
 
-**1. The renewal fails (3 AM, unattended).** A card is declined on a $42 monthly renewal. In the
-demo, press **Find products & convene the Tribunal** — the shop tab is already open.
+**1. An agent wants to spend $42.** Its budget for the month is $200, and $0 of it is spent. In
+the demo, press **Find products & convene the Tribunal** — the shop tab is already open.
 
 **2. The three agents argue the specific case.** Advocate, Auditor and Witness each get the same
 facts: amount, category, how much of this month's budget is already spent, and whether the customer
-is on a first purchase or a renewal. They return a verdict — **APPROVED**, **CONDITIONAL**, or
+has bought from this brand before. They return a verdict — **APPROVED**, **CONDITIONAL**, or
 **DENIED** — and a reason per agent.
 
 Open **Direct Adjudication** to run a case of your own. Change the amount or the budget, press
@@ -183,8 +184,8 @@ adjudications, not the table copied out of this file.
 ![The 4x4 verdict grid, reproduced live](docs/screenshots/08_grid.png)
 
 **Both axes move the verdict in the direction you would expect.** A bigger purchase is judged more
-strictly; a bigger budget buys more room; and the $42 renewal that starts the story sits exactly on
-the line between *retry it* and *ask a human* — which is why the demo opens there. The gates behind
+strictly; a bigger budget buys more room; and the $42 purchase that starts the story sits exactly on
+the line between *approve it* and *ask a human* — which is why the demo opens there. The gates behind
 each verdict are named in the receipt: **G2** (absolute ceiling), **G3** (share of the month's
 budget), **G4** (repeat-customer bar), **G5** (survives double cost).
 
@@ -217,30 +218,36 @@ agentic commerce, which
 [PayPal projects](https://www.paypal.com/us/brc/article/agentic-commerce-pulse-report-findings) will
 reach **$1.7 trillion by 2030**.
 
-But **recurring billing has a hole nobody has filled: the failure path.**
+But **that growth runs straight into a hole nobody has filled: who approves the agent's spending,
+and what happens when the buyer objects.**
 
-When a renewal fails, today's options are crude: retry blindly, or cancel. There is no *judgement*,
-and no *record* of why the decision was made. Industry benchmarks show that **25–40% of subscription
-churn is involuntary** — the customer never chose to leave; the payment just failed — and that it is
-*"a payments-infrastructure problem with a technical fix."* For a brand billing real customers, that
-is the difference between a recovered subscriber and a silent loss.
+Today the choices are both bad. Give the agent a card and it can spend anything, with no reasoned
+record of why a payment was allowed. Give it nothing and it cannot work. The same gap exists on the
+other side of the transaction: when a buyer disputes a settled payment, the merchant has hours to
+answer, and what typically happens is the merchant refunds whatever is cheapest to stop the clock —
+because assembling the evidence and writing a defence by hand costs more than the dispute is worth.
+
+Both problems have the same shape. **A payment decision is made with no named gates, no captured
+dissent, and no record that survives into the dispute that follows.** Tuesday puts a record there.
 
 ## What Tuesday does
 
-**It puts three independent AI agents on the failed-renewal path, and makes PayPal the place the
-decision lands.**
+**It puts three independent AI agents between an agent's intent and the money, and makes PayPal the
+place the decision lands — before the payment and after the dispute.**
 
 | Agent | Model (different vendor each) | Job |
 |---|---|---|
-| **Advocate** | `deepseek-v4.1-flash` (DeepSeek) | Argues to retry — the subscriber is valuable, the failure looks technical |
+| **Advocate** | `deepseek-v4.1-flash` (DeepSeek) | Argues the purchase is justified — the restock is needed, the price is ordinary for the category |
 | **Auditor** | `gemma4:31b` (Google) | Opposes on a failed named gate — `G1`–`G5`, the arithmetic of the budget. Never on a vibe |
-| **Witness** | `gpt-oss:120b` (OpenAI OSS) | Judges both sides and returns APPROVE / DENY / CONDITIONAL — plus the `conditions` under which a near-miss becomes payable |
+| **Witness** | `gpt-oss:120b` (OpenAI OSS) | Judges both sides and returns APPROVE / DENY / CONDITIONAL — plus the `conditions` under which a near-miss becomes payable. On a dispute it becomes the arbiter |
 
 **Three different vendors on purpose.** Three copies of the same model share the same blind spots —
 which defeats the entire point of an adversarial review. (Measurement: the Auditor model was chosen
 at 196 tokens / 844 ms per turn, versus 365 tokens / 4,466 ms for the alternative.)
 
-The renewal moves **only on consensus**, and the outcome is written into the payment record.
+The money moves **only when the rule says it may** — two objections always lose, two approvals carry,
+and a tie is resolved by a stated condition rather than by rounding up. The outcome, including the
+dissent, is hashed into the payment record.
 
 ### The novel part: a disagreement you can verify
 
@@ -256,33 +263,46 @@ stamped onto the money**:
 > already written into live PayPal sandbox records, and changing it would invalidate the round-trip
 > proof below. It names the mechanism, not the product.
 
-That is the difference between *"an AI renewed this subscription"* and *"here is exactly which agent
+That is the difference between *"an AI bought this"* and *"here is exactly which agent
 voted what, on which model, and here is a hash proving the record is intact."*
 
 ## How it works, end to end
 
 ```
-Tuesday 03:00 — a subscription renewal fails (card declined)
-        ↓
-PayPal reports the failure
+BEFORE THE MONEY MOVES
+An agent wants $42 against a $200 monthly budget
         ↓
 Tuesday's tribunal (3 independent LLMs, 3 vendors)
-   Advocate : "retry — this subscriber has paid 14 months in a row"
-   Auditor  : "against — third failure this quarter, the card is dead"
-   Witness  : "conditional — retry once, then downgrade"
+   Advocate : "for — the restock is needed, $42 is ordinary for this category"
+   Auditor  : "against — G5: if it doubled it would not fit the remaining budget"
+   Witness  : "conditional — approve only if the price comes down"
         ↓
-CONSENSUS?  ── no ──→  nothing is created. The dissent map is returned to the brand.
+THE GATE (deterministic, never asks a model for permission)
+   G1 amount positive · G2 within remaining · G3 share ≤ 50%
+   G4 not a repeat · G5 survives a doubled price
+        ↓
+GATE PASSED?  ── no ──→  PayPal is never called. The dissent map goes back to the human.
         │
        yes
         ↓
-PayPal Orders v2 REST + WebMCP (`navigator.modelContext`)
-   → the purchase is settled through PayPal Orders v2 REST (sandbox)
-   → the receipt hash is stamped into custom_id
+PayPal Orders v2 REST (sandbox) — the receipt hash is stamped into custom_id
         ↓
-The brand approves in one tap. The subscriber sees exactly what happened, and can object.
+A human finishes the payment in PayPal. No capture without it.
+
+AFTER THE MONEY HAS MOVED
+The buyer disputes the settled payment
         ↓
-AG Grid  — ledger of every decision, vote, and hash
-Bryntum  — the renewal timeline: which failures are still open
+Tuesday's tribunal, same three roles, now arguing over evidence E1–E9
+   Merchant Advocate : cites only evidence that is present
+   Buyer Advocate    : cites what is missing — that is its job
+   Arbiter           : CONTEST / OFFER_PARTIAL / REFUND / ACCEPT / ESCALATE
+        ↓
+THE DISPUTE GATE  D1 evidence · D2 ceiling · D3 citations · D4 deadline · D5 no free surrender · D6 money waits
+        ↓
+A human authorises anything that sends money back. Only CONTEST runs unattended.
+
+AG Grid  — every decision, every vote, every hash
+Bryntum  — the audit timeline: which decisions are still open
 ```
 
 ## Architecture
@@ -297,17 +317,19 @@ src/webmcp.js      — Registers the tribunal as WebMCP tools + orchestrates Pay
 paypal/client.js   — PayPal Orders v2 REST client (OAuth2 token, create/capture/get order;
                      deterministic mock fallback when no sandbox keys are present)
 demo/server.mjs    — Zero-dependency HTTP server
-demo/index.html    — Demo UI (AG Grid ledger + Bryntum renewal timeline)
+demo/index.html    — Demo UI (AG Grid ledger + Bryntum audit timeline)
 tests/moneyGate.test.js — The money gate, mechanically proven (0 records on non-consensus)
 tests/paypalSandbox.live.mjs — Live proof against the real PayPal sandbox
 tests/channel3.live.mjs      — Live proof against the real Channel3 API
 ```
 
 ### Decision states
-- `APPROVED` — ≥2 agents for, no blocking condition → the renewal may proceed
-- `CONDITIONAL` — the Witness approves only under a stated condition ("retry once, then downgrade")
-- `DENIED` — ≥2 agents against → **nothing may be created**
-- `DISSENT` — no consensus → the dissent map is returned to the human
+- `APPROVED` — two or more agents for, no blocking condition → the PayPal order may be raised
+- `CONDITIONAL` — the Witness bridges a split with a stated condition. The order is raised and the
+  condition travels in the receipt; the condition is shown **on Tuesday's own approval screen**, not
+  inside PayPal's checkout, which does not display merchant conditions
+- `DENIED` — two or more agents against → **nothing may be created**
+- `DISSENT` — no majority either way → the dissent map is returned to the human
 
 
 ## Why three agents cannot corrupt each other
@@ -458,7 +480,7 @@ in production:
 | **Money gate** (`src/webmcp.js`) | **Implemented** | `triadCreateOrder()` refuses to call PayPal at all when the decision is DENIED or DISSENT — it returns `not_approved` before any network call. Asserted by `tests/moneyGate.test.js`. |
 | **Disputes v1** (`paypal/client.js`) | **Implemented and exercised on a real dispute** | `GET /v1/customer/disputes`, `GET /v1/customer/disputes/{id}`, `POST .../accept-claim`, `POST .../make-offer`, `POST .../provide-evidence`, `POST .../escalate`. Read against a dispute raised in the sandbox (`PP-R-IAL-10194452`, see *A real dispute, end to end*). `provide-evidence` takes **multipart/form-data**, not JSON, and rejects an empty `tracking_info` array — both measured, both handled. Tuesday never files a dispute: PayPal permits that only from the buyer side. |
 | **WebMCP** (`navigator.modelContext`) | **Implemented** | Registered in `src/commerce.js` / `src/webmcp.js`, so an agent browser can drive the flow as page tools. |
-| Subscriptions v1 | Not implemented | The product story is a *failed renewal*, but the settlement here is an Orders v2 one-off. We tried the subscription path: in the sandbox an `APPROVAL_PENDING` subscription cannot be activated by an API call (`POST /activate` → 422), which is PayPal's design — the buyer must approve. Wiring the recurring plan itself is the next step, not something this demo claims to have done. |
+| Subscriptions v1 | Not implemented | Tuesday settles one-off purchases and disputes; it does not bill recurring plans. The settlement here is an Orders v2 one-off. We tried the subscription path: in the sandbox an `APPROVAL_PENDING` subscription cannot be activated by an API call (`POST /activate` → 422), which is PayPal's design — the buyer must approve. Wiring the recurring plan itself is the next step, not something this demo claims to have done. |
 | PayPal Agent Toolkit (`@paypal/mcp`) | Not implemented | The integration point this design would move to in production. The demo settles through Orders v2 REST directly so a judge can run it with nothing but sandbox credentials. |
 
 ### Prove it yourself against the PayPal sandbox
@@ -705,20 +727,25 @@ node demo/server.mjs
 | Tool | How it is used |
 |---|---|
 | **PayPal** | Orders v2 REST (`paypal/client.js`): OAuth2 client-credentials token → create order → capture, with the decision hash in `custom_id`. Sandbox by default in MOCK; live with your own keys. Subscriptions v1 / Agent Toolkit are the production integration point, not implemented here. Deterministic fallback when no PayPal keys are present. |no key. |
-| **AG Grid** | The decision ledger — every renewal, every vote, every receipt hash, with a selection-driven receipt panel. |
-| **Bryntum Scheduler** | The renewal timeline — who decided what, when, and which failed renewals are still unresolved. |
+| **AG Grid** | The decision ledger — every adjudication, every vote, every receipt hash, with a selection-driven receipt panel. |
+| **Bryntum Scheduler** | The audit timeline — who decided what, when, and which decisions and disputes are still open. |
 | **Channel3** | Product discovery — grounds the debate in a real, purchasable SKU. Live search through the real API when `CHANNEL3_API_KEY` is set; a curated 24-product set when it is not (see the zero-config / configured table above). |
 | **Render** | Hosting for the live demo — a Render Web Service built from this repository's `Dockerfile`. The container carries a `HEALTHCHECK` because a free instance sleeps after 15 minutes idle and the first request can take up to a minute to wake it. |
 
 ## Impact
 
-Recurring billing is where PayPal makes its money, and **the failure path is where brands lose
-customers.** Tuesday turns a failed renewal into a reviewed, provable, human-approved
-decision — recovered revenue for the brand, and a record the subscriber can trust.
+PayPal is betting its growth on agents that pay on a customer's behalf. That bet only pays off if a
+merchant can let an agent spend without losing control of the money — and if a buyer who objects gets
+an answer grounded in evidence rather than a refund issued to stop the clock.
 
-The pattern generalises to *any* high-stakes agent action: subscription changes, refunds, payouts.
-**Adversarial review + surfaced dissent + a human final call + a tamper-evident record** is what
-makes autonomous money trustworthy.
+Tuesday turns an agent's intent into a reviewed, provable, human-approved payment, and turns the
+dispute that may follow into a decision backed by a record instead of a guess. The same receipt does
+both jobs: it says why the payment was allowed, and it is the first piece of evidence when somebody
+asks whether it should have been.
+
+The pattern generalises to *any* high-stakes agent action: purchases, refunds, payouts, subscription
+changes. **Named gates + adversarial review + surfaced dissent + a human final call + a verifiable
+record** is what makes autonomous money trustworthy.
 
 ## License
 
