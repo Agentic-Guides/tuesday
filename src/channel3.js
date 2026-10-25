@@ -63,11 +63,14 @@ export class Channel3 {
 
     // Channel3 /v1/search: POST with a JSON body, authenticated via the
     // `x-api-key` header (NOT Authorization: Bearer).
+    // ★ Channel3 rejects unknown filter keys with 422 extra_forbidden. `filters.category`
+    //   is not part of the schema: the category has to travel in `query`. Passing both
+    //   made every live Shop request fail with an internal error, which in turn made the
+    //   demo look broken in LIVE mode only. Verified against the live API.
     const body = { query: q.query || q.category || '', limit: q.limit || 10 };
     const filters = {};
     if (q.maxPrice) filters.price = { max_price: q.maxPrice };
     if (q.minPrice) filters.price = { ...(filters.price || {}), min_price: q.minPrice };
-    if (q.category) filters.category = q.category;
     if (Object.keys(filters).length) body.filters = filters;
 
     const res = await fetch(`${this.base}/v1/search`, {
