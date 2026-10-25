@@ -226,6 +226,19 @@ const server = createServer(async (req, res) => {
     return json(res, 200, triad.triadGetLedger());
   }
 
+  /* ★ Which integrations are actually live in THIS process. The page shows these as
+   *   badges, because "is this PayPal real, and are the agents real models" is the
+   *   first thing a judge needs to know and the last thing a README can prove.
+   *   Reported from the running objects, never from configured intent. */
+  if (req.method === 'GET' && url.pathname === '/api/mode') {
+    return json(res, 200, {
+      paypal: triad._paypal.mode,                                  // MOCK | SANDBOX
+      paypalDescription: triad._paypal.modeDescription,
+      agents: triad._runner.live ? 'LIVE' : 'DETERMINISTIC',       // 3 LLMs | rule engine
+      catalog: commerce._catalog.mode,                             // LIVE | CURATED
+    });
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/verify') {
     try {
       const body = await readJson(req); return json(res, 200, await triad.triadVerifyReceipt(body)); }

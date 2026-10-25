@@ -92,8 +92,12 @@ function seedLedger(ledger) {
       witness: deterministicJudge(makeAgent(ROLES.WITNESS, 'seed', constraints), purchase, advocate, auditor),
     };
     const result = adjudicate(purchase, args, 2);
-    const receipt = buildReceipt(result, { engine: 'deterministic' });
-    receipt.at = new Date(base - minutesAgo * 60e3).toISOString();
+    // ★ The timestamp has to be part of the hash, so it must go IN before hashing.
+    //   This used to build the receipt and then overwrite `at`, which left every
+    //   seeded row reporting receiptIntact:false — a ledger that looks tampered with
+    //   on first load. Pass `at` to buildReceipt so the hash covers it.
+    const issuedAt = new Date(base - minutesAgo * 60e3).toISOString();
+    const receipt = buildReceipt(result, { engine: 'deterministic', at: issuedAt });
     receipt.customId = receiptCustomId(receipt);
     ledger.push({
       at: receipt.at,

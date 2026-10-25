@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tuesday — AI agents renew a merchant's subscriptions through PayPal</title>
+<title>Tuesday — three AI agents audit a purchase, then PayPal settles</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.4/styles/ag-grid.css" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.4/styles/ag-theme-quartz.css" crossorigin="anonymous">
 <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.4/dist/ag-grid-community.min.noStyle.js"></script crossorigin="anonymous">
@@ -533,12 +533,34 @@
     .metrics { grid-template-columns: 1fr; }
   }
 .ag-theme-quartz, .ag-theme-quartz-dark { --ag-foreground-color: #241f1a; --ag-background-color: #ffffff; --ag-border-color: var(--line); --ag-header-foreground-color: #241f1a; }
+
+  /* Mode badges: LIVE vs fallback, stated plainly */
+  .modebar { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0 }
+  .mode {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 600; letter-spacing: .01em;
+    padding: 7px 12px; border-radius: 999px;
+    border: 1px solid var(--line-2); background: var(--panel-2); color: var(--dim);
+  }
+  .mode::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #b9b0a0 }
+  .mode[data-mode="live"] { border-color: #9fd6b4; background: #eef8f1; color: #17532f }
+  .mode[data-mode="live"]::before { background: #16a34a; box-shadow: 0 0 7px rgba(22,163,74,.65) }
+  .mode[data-mode="fallback"] { border-color: #e5c98d; background: #fdf6e6; color: #7a5410 }
+  .mode[data-mode="fallback"]::before { background: #d99e16 }
+
+  /* Outbound links + reading guide */
+  .links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 13.5px }
+  .links a { color: #b91c1c; text-decoration: none; border-bottom: 1px solid rgba(185,28,28,.28) }
+  .links a:hover { border-bottom-color: #b91c1c }
+  .links .sep { color: var(--line-2) }
+  .howto { margin: 10px 0 0; font-size: 13px; line-height: 1.6; color: var(--dim); max-width: 78ch }
+  .howto b { color: var(--ink) }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>TUESDAY</h1> <div class="sub" id="premise">A $42/month renewal fails on Tuesday, 3 AM. Three AI agents debate retry / downgrade / release — and a real PayPal order is raised on their consensus. US skincare brand · 12,000 subscribers.</div>
+    <h1>TUESDAY</h1> <div class="sub" id="premise">The restock agent wants to spend $42 of a $200 monthly budget. Three independent AI agents audit it. No PayPal order is created unless the tribunal approves — and the reason is stamped into the payment record. US skincare brand · 12,000 subscribers.</div>
     <div class="tags">
       <span class="tag">PayPal Orders v2 REST</span>
       <span class="tag">Three LLMs</span>
@@ -547,6 +569,31 @@
       <span class="tag">Channel3</span>
       <span class="tag">Render</span>
     </div>
+
+    <!-- Live mode badges. A judge must be able to tell, at a glance, which of the three
+         integrations are actually running and which have fallen back. The flags come
+         from /api/ledger, so they describe this process, not the README. -->
+    <div class="modebar" id="modebar">
+      <span class="mode" id="modePaypal" data-mode="?">PayPal: checking…</span>
+      <span class="mode" id="modeAgents" data-mode="?">Agents: checking…</span>
+      <span class="mode" id="modeCatalog" data-mode="?">Catalog: checking…</span>
+    </div>
+
+    <!-- Where to go next. The demo page is often the first thing opened, and it should
+         not be a dead end. -->
+    <div class="links">
+      <a href="https://github.com/Agentic-Guides/tuesday" target="_blank" rel="noopener">GitHub repository</a>
+      <span class="sep">·</span>
+      <a href="https://youtu.be/49eujv0VV0Y" target="_blank" rel="noopener">Demo video (2:50)</a>
+      <span class="sep">·</span>
+      <a href="https://github.com/Agentic-Guides/tuesday#readme" target="_blank" rel="noopener">README</a>
+    </div>
+
+    <p class="howto">
+      <b>How to read this page:</b> press the three buttons under <i>Prove it yourself</i> first —
+      they run the actual test suite. Then open <i>Shop</i> to watch the tribunal judge real
+      products, and <i>Audit Timeline</i> to see every decision on a time axis.
+    </p>
   </header>
 
   <div class="tabbar">
@@ -571,7 +618,7 @@
       <li>
         <div class="step-head">
           <span class="step-n">1</span>
-          <b>No money moves unless the agents agree.</b>
+          <b>No PayPal order is created unless the tribunal approves.</b>
           <span class="step-sub">A DENIED verdict never reaches PayPal — the gate returns
           <code>not_approved</code> before any network call.</span>
         </div>
@@ -580,7 +627,7 @@
           <div id="proofVerdict" class="proof-verdict"></div>
           <pre id="proofLog"></pre>
           <p class="proof-note">
-            <b>What to look for:</b> <code>denied → createOrder NOT called — calls=1</code>.
+            <b>What to look for:</b> <code>denied → createOrder NOT called — delta=0</code>. The delta is the number of extra PayPal calls the DENIED case made: zero.
           </p>
         </div>
       </li>
@@ -661,7 +708,7 @@
   <!-- DIRECT MODE -->
   <div id="directMode">
     <div class="panel">
-      <h2>Tuesday, 3 AM — a $42 renewal just failed</h2>
+      <h2>Direct adjudication — review any purchase</h2>
       <div class="grid2">
         <div class="field"><label>What is being renewed?</label><input id="d_category" value="Monthly skincare refill — subscription renewal" /></div>
         <div class="field"><label>Amount (USD)</label><input id="d_amount" type="number" value="42" /></div>
@@ -1470,10 +1517,39 @@ bindRun('run', { idle: '⚖️ Convene the Tribunal', busy: 'Agents deliberating
   await refreshLedger();
 });
 
+// ── Mode badges ────────────────────────────────────────────────────────
+// Which integrations are actually live in this process. A judge should never have
+// to read the README to find out whether the PayPal screens are real.
+async function refreshMode() {
+  const paint = (id, label, live, liveText, fallbackText) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.dataset.mode = live ? 'live' : 'fallback';
+    el.textContent = `${label}: ${live ? liveText : fallbackText}`;
+  };
+  try {
+    const m = await api('/api/mode');
+    paint('modePaypal', 'PayPal', m.paypal && m.paypal !== 'MOCK',
+          `${m.paypal} live`, 'MOCK — no keys, orders simulated');
+    paint('modeAgents', 'Agents', m.agents === 'LIVE',
+          '3 live LLMs', 'deterministic rules');
+    paint('modeCatalog', 'Catalog', m.catalog === 'LIVE',
+          'Channel3 live', 'curated fallback');
+    const pp = document.getElementById('modePaypal');
+    if (pp) pp.title = m.paypalDescription || '';
+  } catch (e) {
+    for (const id of ['modePaypal', 'modeAgents', 'modeCatalog']) {
+      const el = document.getElementById(id);
+      if (el) { el.dataset.mode = 'fallback'; el.textContent = el.textContent.replace('checking…', 'unknown'); }
+    }
+  }
+}
+
 // Init
 initCandidateGrid();
 initLedgerGrid();
 refreshLedger();
+refreshMode();
 </script>
 </body>
 </html>
