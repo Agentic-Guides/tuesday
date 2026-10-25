@@ -215,6 +215,37 @@ filing only from the buyer side, with scopes this app does not hold. The dispute
 by a sandbox buyer through the Resolution Center — exactly how a real buyer files one. Tuesday
 reads and answers disputes; it never files them.
 
+### What the receipt proves, and what it does not
+
+The receipt is the audit trail, so its limits are worth stating as precisely as its
+guarantees. All of this was measured against the code:
+
+**It proves** that the seven fields which decided the outcome — the decision, the three
+votes, the three models, a fingerprint of each agent's reasoning, the amount, the threshold
+and the timestamp — were hashed together. Change one and the hash changes: flipping
+`decision` from `APPROVED` to `DENIED` took `e77c34c4185e9621` to `1800bfdabc44e4c0`. It
+proves the stamp in PayPal's payment record agrees with the ledger entry, checked at
+dispute time by evidence `E3`.
+
+**It does not prove** those things are collision-resistant to 256 bits. The fingerprint is
+the leading 16 hex characters — **64 bits** — because that is the part short enough to read
+by eye. Forging a different receipt that collides on those 16 characters is a second-preimage
+search of about 2^64: out of reach here, and squarely easier than 2^256, which is the honest
+way to say it.
+
+**It does not put the reasoning in the receipt.** The receipt carries
+`reasoning: {advocate: "cf7ab516125e9a85", …}` — hashes, not sentences. The prose an agent
+wrote stays in the ledger. The payment record therefore proves *that* a decision was made and
+*which* votes it had; it does not let you read the argument out of PayPal.
+
+**It trusts the ledger.** Verification compares the stamp against an entry Tuesday holds. If
+the ledger itself were rewritten the comparison would follow it. What the hash prevents is
+silent divergence between the two, not a compromised ledger.
+
+**`custom_id` is merchant metadata.** It is visible to the merchant and to PayPal, and this
+project does not claim PayPal's reviewers act on it. What it does is carry the decision with
+the payment, so a dispute weeks later can be answered with a record instead of a guess.
+
 ## The part we are proudest of
 
 **Disagreement is a first-class outcome.** A system that always reaches consensus is not

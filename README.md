@@ -378,6 +378,46 @@ whose full hash happens to share those 16 characters requires a second-preimage 
 about 2^64 — out of reach for this threat model, but 2^64 rather than 2^256, which is the
 honest way to state it.
 
+### What the receipt proves, and what it does not
+
+The receipt is the audit trail, so its limits are worth stating as precisely as its
+guarantees. All of the following was measured against `src/receipt.js`:
+
+**What it proves.**
+
+- The seven fields that decided the outcome — decision, the three votes, the three models,
+  a fingerprint of each agent's reasoning, the amount, the threshold, the engine and the
+  timestamp — were hashed together. Change any one of them and the hash changes: measured,
+  flipping `decision` from `APPROVED` to `DENIED` turned `e77c34c4185e9621` into
+  `1800bfdabc44e4c0`.
+- The same string comes out of the same content regardless of key order or how the object
+  was built, because the canonicalisation sorts keys recursively.
+- The stamp in PayPal's payment record agrees with the ledger entry, checked at dispute
+  time by evidence `E3`. On a real dispute: *"The decision hash
+  `triad1:728f5a73d918240d` matches the ledger entry (`728f5a73d918240d`)."*
+
+**What it does not prove — and a reader should not assume otherwise.**
+
+- **It is 64 bits, not 256.** `fingerprint()` returns the leading 16 hex characters, and
+  that is what goes into `custom_id`. Forging a *different* receipt that collides on those
+  16 characters is a second-preimage search of about 2^64. Out of reach for this threat
+  model, and two orders of magnitude easier than 2^256 — the honest way to state it.
+- **The reasoning is not in the receipt, only its fingerprint.** The receipt carries
+  `reasoning: {advocate: "cf7ab516125e9a85", ...}` — hashes, not prose. The sentences an
+  agent actually wrote live in the ledger. So the payment record proves *that* a decision
+  was made and *which* votes it had; it does not let you read the argument out of PayPal.
+- **The ledger is the thing being trusted.** Verification compares the stamp against an
+  entry Tuesday holds. If the ledger itself is rewritten, the comparison follows it. What
+  the hash prevents is silent divergence between the two — not a compromised ledger.
+- **`custom_id` is merchant metadata.** It is visible to the merchant and to PayPal, and
+  this project does not claim that PayPal's reviewers act on it. What it does is carry the
+  decision with the payment, so that a dispute weeks later can be answered with a record
+  rather than a guess.
+- **The parser is strict on purpose.** `hashFromCustomId()` accepts exactly
+  `triad1:` followed by 16 lowercase hex characters. `triad2:…`, `triad1:xyz`,
+  `triad1:728F5A73D918240D` (uppercase) and a bare hash all return `null` — measured —
+  so a format change cannot silently verify against the wrong thing.
+
 **Who decides what — the split that makes the LLMs load-bearing.**
 
 The obvious question is: if the gates decide, are the models decoration? No, and the
