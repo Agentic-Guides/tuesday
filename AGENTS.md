@@ -44,65 +44,76 @@ This is the part reviewers ask about, so keep it true.
 If you add a fourth agent, it must obey both rules or the receipt stops meaning
 what it claims.
 
-## 合意エンジンの規約（変更前に必ず読む）
+## Consensus rules — read before changing anything
 
-- **threshold = 2**（3体中2票）。`adjudicate(purchase, args, 2)` を変えるなら、
-  既存テスト3本（in-budget / over budget / split）を通すこと。
-- **判定順序は「拒否が先、合意は後」。この順序を入れ替えるな**（2026-10-24 に
-  実際に壊れた箇所）:
-  1. `votesAgainst >= 2` → **DENIED**（金額を動かせない）
-  2. `votesFor >= threshold` → Witness が条件を持てば **CONDITIONAL**、無ければ **APPROVED**
-  3. `votesFor === 1 && votesAgainst === 1` かつ Witness が条件を提示 → **CONDITIONAL**
-  4. それ以外 → **DISSENT**
+- **threshold = 2** (two votes out of three). If you change
+  `adjudicate(purchase, args, 2)`, the existing tests (in-budget / over budget /
+  split) must still pass.
+- **Refusal is evaluated first, agreement second. Do not reorder these** — this
+  order was actually broken once and produced an order for a purchase two agents
+  had rejected:
+  1. `votesAgainst >= 2` → **DENIED** (money cannot move)
+  2. `votesFor >= threshold` → **CONDITIONAL** if the Witness attached a condition,
+     otherwise **APPROVED**
+  3. `votesFor === 1 && votesAgainst === 1` and the Witness attached a condition →
+     **CONDITIONAL**
+  4. anything else → **DISSENT**
 
-  以前は「Witness が条件を持っていれば無条件に CONDITIONAL」を最優先していたため、
-  **反対2票でも CONDITIONAL になり PayPal 注文が作れた**（実測で再現）。
-  全会一致の反対（3票）でも同じだった。`tests/moneyGate.test.js` はこの経路を
-  塞いでいるが、テストケースの `CONDITIONAL` は「賛成2票 + 条件」で組むこと。
-  賛成1票 + 条件は DISSENT であり CONDITIONAL ではない。
-- 3) を残しているのは製品の意味を守るため: 「Advocate が押し、Auditor が止め、
-  Witness が条件で橋を架ける」が本製品の中心的な振る舞い。
-  1) が先に落ちるので、この経路が金の抜け穴にはならない。
-- **監査役（auditor）の判定順序**: ① 金額が正か（0/未指定/負は拒否）
-  ② 予算超過か ③ 予算シェアが 50% 超か ④ recentPurchases があるなら 25% 超か。
-  ③は recentPurchases に依存させない — 依存させると「予算の93%を使う買い物」が
-  素通しで APPROVED になる（実測で確認した不具合。修正済み）。
-- **決定論エンジンが正**。LLM が無くても同じ判定を返せること。
+  An earlier version checked "the Witness has a condition" first and
+  unconditionally, so **two objectors still produced CONDITIONAL and a PayPal order
+  was raised**. Reproduced, fixed, and `tests/moneyGate.test.js` now blocks that
+  path. Test cases for `CONDITIONAL` must be built as "two votes for + condition";
+  one vote for + a condition is DISSENT, not CONDITIONAL.
+- Rule 3 is kept because it is the product: "the Advocate pushes, the Auditor
+  blocks, the Witness bridges with a condition" is the behaviour Tuesday exists to
+  show. Rule 1 runs first, so it cannot become a hole in the money gate.
+- **Auditor order of checks**: (1) is the amount positive (0 / missing / negative
+  is refused), (2) over budget, (3) share of budget above 50%, (4) a recent
+  purchase in the same category. Check 3 must not depend on `recentPurchases` —
+  when it did, a purchase using 93% of the budget came back APPROVED.
+- **The deterministic engine is the source of truth.** The same verdict must come
+  out with no LLM present.
+- **A model cannot vote past a failed gate.** `runner.js` runs the deterministic
+  gates independently of the models; if any fails, the Auditor is forced to
+  `against` and the Witness may not bridge it with a condition.
 
-## 禁止事項
+## Prohibited
 
-- 認証情報・トークン・秘密鍵を【ファイルに書かない】。`.env` か環境変数から読む。
-  `.env` は絶対にコミットしない（`.gitignore` 済み）。
-- **実弾を動かす経路を作らない。** PayPal は MOCK か sandbox までで、本番キーを
-  コードに埋めない。
-- 未実測の数字を README / Devpost / 動画に書かない（M8ven の 89/100 等は実測値）。
+- Never write credentials, tokens, or private keys into a file. Read them from
+  `.env` or the environment. `.env` is in `.gitignore` and must never be committed.
+- **Never build a path that moves real money.** PayPal stops at MOCK or sandbox;
+  no production key goes into the code.
+- Never put an unmeasured number into the README, the Devpost story, or the video.
 
-## テスト
+## Tests
 
-- `node test_triad.mjs` — PASS 3 / FAIL 0 を維持する。判定を変えたら必ず実行。
-- 判定マトリクスの確認（$42 固定）:
-  予算$40→全部DENIED / $45〜60→CONDITIONAL混在 / $100→APPROVED / $200→全部APPROVED
+- `node test_triad.mjs` — keep it at PASS 3 / FAIL 0. Run it after any change to
+  the verdict logic.
+- `npm test` — moneyGate, disputeDesk and test_triad together.
+- Verdict matrix spot-check at a fixed $42 purchase: budget $40 → all DENIED;
+  $45–60 → mixed CONDITIONAL; $100 → APPROVED; $200 → all APPROVED.
 
-## デモ（demo/index.html）
+## The demo (demo/index.html)
 
-- **配色は beige 階層**（外側 #f0eadf ／ カード #ffffff ／ 赤 #c0203c ／ 文字 #241f1a）。
-  白一色に戻すと「階層が無い」と評価される（vision で実測済み）。
-- **AG Grid はライトテーマ**。dark テーマに戻すと文字が読めなくなる。
-- コントラストは KPI 数字 1.07 → 18.9 に修正済み。白背景に白文字を残さない。
-- タブは `id` で叩く（`tabShop` / `tabDirect` / `tabTimeline`）。テキスト一致は
-  ボタンが2つある時点で誤爆する。
+- **The palette is a beige hierarchy** (page #f0eadf / card #ffffff / red #c0203c /
+  ink #241f1a). Reverting to flat white reads as "no hierarchy" — measured with
+  vision.
+- **AG Grid stays light.** The dark theme makes text unreadable here.
+- KPI contrast was fixed from 1.07 to 18.9. Never leave white text on white.
+- Address tabs by `id` (`tabShop` / `tabDirect` / `tabTimeline` / `tabDisputes`).
+  Matching on visible text misfires as soon as there are two similar buttons.
 
-## 落とし穴（実測で踏んだもの）
+## Traps that were actually hit
 
-- `#decision` の `innerText` は空。判定は **`#decision .big`** に入る。
-- `document.body.style.zoom` を `scrollIntoView` の**後**に設定すると再レイアウトで
-  判定が画面外へ出る（371px → 739px / viewport 864px）。
-- 審議の**前に** zoom を 0.62 に縮小すると、判定が構造的に必ず画面内に入る。
-- CDP の debug port に複数タブが残っていると、別タブを操作したまま別ウィンドウを
-  録画する。起動時に URL を検証し、違えば即エラーにすること。
+- `#decision`'s `innerText` is empty; the verdict lives in **`#decision .big`**.
+- Setting `document.body.style.zoom` **after** `scrollIntoView` re-lays out the
+  page and pushes the verdict off screen (371px → 739px in an 864px viewport).
+- Shrinking zoom to 0.62 **before** the debate starts keeps the verdict on screen.
+- More than one tab on the CDP debug port means you record one window while
+  driving another. Validate the URL at startup and fail loudly if it differs.
 
-## Windows 固有の注意
+## Windows specifics
 
-- ターミナルは git-bash。PowerShell の組み込みは動かない。
-- ネイティブツール（node / git）には `C:/Users/...` 形式のパスを渡す。
-- h264 エンコードは**偶数サイズ**が必要（奇数の高さは 0 バイト出力で失敗）。
+- The terminal is git-bash; PowerShell builtins do not apply.
+- Pass `C:/Users/...` style paths to native tools (node, git).
+- h264 needs **even** dimensions (an odd height writes a zero-byte file).
