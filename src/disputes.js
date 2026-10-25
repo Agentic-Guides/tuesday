@@ -167,6 +167,20 @@ function mkArg(role, action, reasons, cites, confidence) {
   return { role, action, reasons, cites, confidence };
 }
 
+/**
+ * A positive case may only rest on evidence that is actually present.
+ *
+ * The merchant advocate and the arbiter are arguing *for* something, so citing a gap as
+ * if it were proof is the same lie as inventing an ID. The buyer advocate is excluded on
+ * purpose: pointing at what is missing is precisely its job.
+ */
+function stripUnsupportedCites(role, cites, items) {
+  if (role === 'challenger') return cites;
+  const okIds = new Set(items.filter((i) => i.ok).map((i) => i.id));
+  const ids = new Set(items.map((i) => i.id));
+  return cites.filter((id) => !ids.has(id) || okIds.has(id));
+}
+
 export function deterministicDisputeReasoning(role, { reason, amount, items }) {
   const have = items.filter((i) => i.ok);
   const haveIds = citeList(items);
@@ -190,8 +204,12 @@ export function deterministicDisputeReasoning(role, { reason, amount, items }) {
       reasons.push(`There is no evidence the merchant can put in front of PayPal for this claim.`);
       cites.push('E1');
     }
-    const action = missing.length === 0 ? DISPUTE_ACTION.CONTEST : DISPUTE_ACTION.OFFER_PARTIAL;
-    return mkArg(role, action, reasons, cites, missing.length === 0 ? 0.75 : 0.4);
+    // A blocked contest is escalated, not settled. The merchant advocate's own action
+    // used to be OFFER_PARTIAL whenever any required item was missing, which quietly
+    // turned "we cannot prove this" into "we will pay something".
+    const action = missing.length === 0 ? DISPUTE_ACTION.CONTEST : DISPUTE_ACTION.ESCALATE;
+    return mkArg(role, action, reasons, stripUnsupportedCites(role, cites, items),
+                 missing.length === 0 ? 0.75 : 0.4);
   }
 
   if (role === 'challenger') {
@@ -251,7 +269,7 @@ export function deterministicDisputeReasoning(role, { reason, amount, items }) {
     confidence = 0.6;
   }
 
-  return mkArg('arbiter', action, reasons, cites, confidence);
+  return mkArg('arbiter', action, reasons, stripUnsupportedCites('arbiter', cites, items), confidence);
 }
 
 /* ── The gate ─────────────────────────────────────────────────────────────
@@ -318,11 +336,21 @@ export function runDisputeGate({ action, evidence, arguments: args, deadlineHour
     .filter(([, a]) => a && a.parsed !== false && (!a.cites || a.cites.length === 0))
     .map(([k]) => k);
 
-  if (bogus.length === 0 && uncited.length === 0) {
+  // A citation to an ID that exists is not enough. A merchant advocate citing E5
+  // (delivery confirmation) to prove delivery, when E5 is missing, is the same lie as
+  // inventing an ID — the ID merely happens to exist. So a positive case — the merchant
+  // advocate, or an arbiter proposing an action — may only cite evidence that is
+  // actually present. The buyer advocate may still cite anything: it is arguing against
+  // the merchant, and pointing at what is missing is its job.
+  const positiveCites = ['advocate', 'arbiter'].flatMap((k) => (args?.[k]?.cites || []));
+  const unsupported = positiveCites.filter((cid) => ids.has(cid) && !okIds.has(cid));
+
+  if (bogus.length === 0 && uncited.length === 0 && unsupported.length === 0) {
     passed.push(unparsed.length ? `D3_all_claims_cited_after_deterministic_fallback` : 'D3_all_claims_cited');
   } else {
     if (bogus.length) failed.push(`D3_fabricated_citations_${bogus.join('_')}`);
     if (uncited.length) failed.push(`D3_uncited_argument_${uncited.join('_')}`);
+    if (unsupported.length) failed.push(`D3_unsupported_citations_${[...new Set(unsupported)].join('_')}`);
   }
 
   // D4 — deadline pressure. Never authorises acting; only forbids it.
@@ -391,13 +419,33 @@ export function finaliseDispute({ dispute, evidence, arguments: argsIn, deadline
       action = fallback.action;
       fellBack.push('arbiter (evidence was strong enough to contest)');
     } else {
-      action = evidence.amount <= 25 ? DISPUTE_ACTION.REFUND : DISPUTE_ACTION.OFFER_PARTIAL;
+      // When the gate refuses the argument, the money does not move on a guess. An
+      // earlier version fell back to "refund if small, else offer partial" — which meant
+      // a model that fabricated a citation made the merchant *pay out*. The failure mode
+      // has to be the conservative one, so a blocked argument escalates to a human and
+      // the desk never pays money it has not been told to pay. ESCALATE also hands the
+      // decision back to PayPal, which is the honest place for an unresolvable case.
+      action = DISPUTE_ACTION.ESCALATE;
+      args.arbiter = {
+        ...(args.arbiter || {}),
+        action: DISPUTE_ACTION.ESCALATE,
+        reasons: [
+          ...((args.arbiter && args.arbiter.reasons) || []),
+          'The gate refused the proposed action; escalated to a human and to PayPal.',
+        ],
+      };
+      fellBack.push('escalated (the gate refused the argument)');
     }
   }
 
-  const autoExecute = !gate.blocked && !gate.requiresHuman && action !== DISPUTE_ACTION.CONTEST
-    ? true
-    : (!gate.blocked && !gate.requiresHuman && action === DISPUTE_ACTION.CONTEST);
+  // "Agents propose, humans decide" has to hold for the cases that move money OUT.
+  // REFUND, OFFER_PARTIAL and ACCEPT all send money to the buyer, so none of them may
+  // auto-execute regardless of amount or gate result. Only CONTEST — which submits
+  // evidence and commits nothing — runs without a human inside the auto limit.
+  const SPENDS_MONEY = [DISPUTE_ACTION.REFUND, DISPUTE_ACTION.OFFER_PARTIAL, DISPUTE_ACTION.ACCEPT];
+  const needsHumanForMoney = SPENDS_MONEY.includes(action);
+  const requiresHuman = gate.requiresHuman || needsHumanForMoney || action === DISPUTE_ACTION.ESCALATE;
+  const autoExecute = !gate.blocked && !requiresHuman;
 
   return {
     disputeId: dispute?.dispute_id || dispute?.id || null,
@@ -406,8 +454,9 @@ export function finaliseDispute({ dispute, evidence, arguments: argsIn, deadline
     proposed,
     action,
     downgradedFrom,
-    requiresHuman: gate.requiresHuman,
-    autoExecute: Boolean(autoExecute) && !gate.requiresHuman,
+    requiresHuman,
+    autoExecute: Boolean(autoExecute),
+    spendsMoney: needsHumanForMoney,
     gate: { passed: gate.passed, failed: gate.failed },
     evidence: evidence.items,
     arguments: args,

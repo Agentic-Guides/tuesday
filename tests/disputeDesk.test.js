@@ -161,5 +161,58 @@ check('injection does not become CONTEST authority', fInj.action !== DISPUTE_ACT
 check('the buyer message is recorded as evidence, not as an order',
   evInj.items.some((i) => i.id === 'E9' && /refund the full amount/.test(i.detail)));
 
+// ---------------------------------------------------------------------------
+// The three holes a reviewer found by reading the gate. Each was real, each is now
+// closed, and each is pinned here so it cannot come back.
+// ---------------------------------------------------------------------------
+console.log('\n=== 8. A blocked action escalates; it never falls back to paying ===');
+
+const fabCite = trio(evBare);
+fabCite.arbiter = { ...fabCite.arbiter, action: DISPUTE_ACTION.CONTEST, cites: ['E999'], parsed: true };
+const fFabCite = finaliseDispute({ dispute: notReceived(), evidence: evBare, arguments: fabCite, deadlineHours: 96 });
+
+check('a fabricated citation does not become a refund', fFabCite.action === DISPUTE_ACTION.ESCALATE, fFabCite.action);
+check('a blocked action needs a human', fFabCite.requiresHuman === true);
+check('a blocked action never auto-executes', fFabCite.autoExecute === false);
+check('a blocked action spends no money', fFabCite.spendsMoney === false);
+
+const detOnly = finaliseDispute({ dispute: notReceived(), evidence: evBare, arguments: trio(evBare), deadlineHours: 96 });
+check('even with no model involved, weak evidence does not pay out',
+  !['REFUND', 'OFFER_PARTIAL'].includes(detOnly.action), detOnly.action);
+
+console.log('\n=== 9. Money leaving the account always waits for a human ===');
+
+for (const amt of [6, 12, 42]) {
+  const ev = collectEvidence(notReceived(amt), strongOrder);
+  const a = trio(ev);
+  a.arbiter = { ...a.arbiter, action: DISPUTE_ACTION.REFUND, cites: ['E1'], parsed: true };
+  const r = finaliseDispute({ dispute: notReceived(amt), evidence: ev, arguments: a, deadlineHours: 96 });
+  check(`a $${amt} REFUND waits for a human`, r.requiresHuman === true && r.autoExecute === false,
+    `requiresHuman=${r.requiresHuman} autoExecute=${r.autoExecute}`);
+  check(`a $${amt} REFUND is flagged as spending money`, r.spendsMoney === true);
+}
+
+const fContest = finaliseDispute({ dispute: notReceived(42), evidence: evStrong, arguments: trio(evStrong), deadlineHours: 96 });
+check('CONTEST still runs inside the auto limit, because it spends nothing',
+  fContest.action === DISPUTE_ACTION.CONTEST && fContest.autoExecute === true && fContest.spendsMoney === false);
+
+console.log('\n=== 10. A citation must be evidence that is present, not merely an ID that exists ===');
+
+const evNoTracking = collectEvidence(notReceived(), { ...strongOrder, tracking: null });
+const gapArg = trio(evNoTracking);
+gapArg.advocate = { ...gapArg.advocate, cites: ['E4'], parsed: true };
+const fGap = finaliseDispute({ dispute: notReceived(), evidence: evNoTracking, arguments: gapArg, deadlineHours: 96 });
+check('citing a gap as proof is caught', fGap.gate.failed.some((f) => f.startsWith('D3_unsupported_citations')),
+  fGap.gate.failed.join(',') || 'none');
+
+const buyerArg = trio(evNoTracking);
+buyerArg.challenger = { ...buyerArg.challenger, cites: ['E4'], parsed: true };
+const fBuyer = finaliseDispute({ dispute: notReceived(), evidence: evNoTracking, arguments: buyerArg, deadlineHours: 96 });
+check('the buyer advocate may still point at the gap',
+  !fBuyer.gate.failed.some((f) => /unsupported.*E4/.test(f)), fBuyer.gate.failed.join(',') || 'none');
+
+check('the deterministic advocate never cites a gap',
+  deterministicDisputeReasoning('advocate', evNoTracking).cites.every((id) => id !== 'E4'));
+
 console.log(`\n${fail === 0 ? '✅' : '❌'} disputeDesk: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

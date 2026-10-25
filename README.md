@@ -547,9 +547,15 @@ Five rules, each proven in `tests/disputeDesk.test.js`:
 |---|---|
 | **D1** evidence sufficiency | `CONTEST` is refused when the items that reason requires are missing — tracking and delivery for a non-receipt claim, order and capture for an unauthorised-payment claim |
 | **D2** amount ceiling | above $50, only a human may authorise |
-| **D3** citation check | a citation to an evidence ID that does not exist stops the action; so does an argument with no citations at all |
+| **D3** citation check | a citation must be evidence that is *present*, not merely an ID that exists. Citing the missing delivery record as proof of delivery is the same lie as inventing an ID. The buyer advocate is exempt — pointing at the gap is its job |
 | **D4** deadline | a looming deadline forces a human. It never creates authority to act |
 | **D5** no free surrender | `ACCEPT` while every required item is present and delivery is confirmed is a model being agreeable, not deciding |
+| **D6** money waits | `REFUND`, `OFFER_PARTIAL` and `ACCEPT` send money to the buyer, so none of them ever auto-execute, at any amount. Only `CONTEST` — which submits evidence and commits nothing — runs inside the auto limit |
+
+**When the gate refuses the proposed action, the desk escalates to a human and to PayPal.
+It never settles.** An earlier version fell back to "refund if small, else offer partial",
+which meant a model that fabricated a citation made the merchant pay out. The failure mode
+has to be the conservative one.
 
 **D5 exists because of a measured failure.** The same evidence set produced `CONTEST` on
 one run and `ACCEPT` on the next. A gate that only checked citations would have let the
