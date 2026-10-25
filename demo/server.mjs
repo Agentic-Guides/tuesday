@@ -416,6 +416,10 @@ function sampleDisputes() {
       order: {
         id: 'ORDER-1001', status: 'COMPLETED', captured: true,
         custom_id: 'triad1:3e1a31b9ea301bd2',
+        // The ledger entry this stamp must agree with. Without it, evidence E3 could
+        // only report "a stamp exists" -- it had nothing to compare against, and every
+        // sample case failed the audit-trail check it is meant to demonstrate.
+        ledger_hash: '3e1a31b9ea301bd2',
         tracking: { number: '1Z999AA10123456784', carrier: 'UPS', status: 'DELIVERED' },
         address_match: true, prior_orders: 4,
         refund_policy: '30-day returns, buyer pays return shipping',
@@ -433,6 +437,10 @@ function sampleDisputes() {
       order: {
         id: 'ORDER-1002', status: 'COMPLETED', captured: true,
         custom_id: 'triad1:8c1d4f2a9e77b310',
+        // The ledger entry this stamp must agree with. Without it, evidence E3 could
+        // only report "a stamp exists" -- it had nothing to compare against, and every
+        // sample case failed the audit-trail check it is meant to demonstrate.
+        ledger_hash: '8c1d4f2a9e77b310',
         tracking: null, address_match: null, prior_orders: 0,
         refund_policy: null,
       },
@@ -449,6 +457,10 @@ function sampleDisputes() {
       order: {
         id: 'ORDER-1003', status: 'COMPLETED', captured: true,
         custom_id: 'triad1:5b2e8d1c44af9076',
+        // The ledger entry this stamp must agree with. Without it, evidence E3 could
+        // only report "a stamp exists" -- it had nothing to compare against, and every
+        // sample case failed the audit-trail check it is meant to demonstrate.
+        ledger_hash: '5b2e8d1c44af9076',
         tracking: { number: '9400111899223197428490', carrier: 'USPS', status: 'DELIVERED' },
         address_match: true, prior_orders: 1,
         refund_policy: '30-day returns',
@@ -466,6 +478,10 @@ function sampleDisputes() {
       order: {
         id: 'ORDER-1004', status: 'COMPLETED', captured: true,
         custom_id: 'triad1:9f3a7b26c1e05d84',
+        // The ledger entry this stamp must agree with. Without it, evidence E3 could
+        // only report "a stamp exists" -- it had nothing to compare against, and every
+        // sample case failed the audit-trail check it is meant to demonstrate.
+        ledger_hash: '9f3a7b26c1e05d84',
         tracking: { number: '7749 1000 1234', carrier: 'FedEx', status: 'IN_TRANSIT' },
         address_match: false, prior_orders: 0,
         refund_policy: null,
