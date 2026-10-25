@@ -555,6 +555,57 @@
   .links .sep { color: var(--line-2) }
   .howto { margin: 10px 0 0; font-size: 13px; line-height: 1.6; color: var(--dim); max-width: 78ch }
   .howto b { color: var(--ink) }
+
+  /* ── Dispute desk ─────────────────────────────────────────────────── */
+  .dispute-note {
+    font-size: 13px; line-height: 1.6; color: #7a5410;
+    background: #fdf6e6; border: 1px solid #e5c98d; border-radius: 10px;
+    padding: 10px 14px; margin: 8px 0 14px;
+  }
+  .dispute-note.sample { color: #7a5410; background: #fdf6e6; border-color: #e5c98d }
+  .dispute-note.paypal { color: #17532f; background: #eef8f1; border-color: #9fd6b4 }
+
+  .dispute-list { display: flex; flex-direction: column; gap: 10px }
+  .dispute-card {
+    display: grid; grid-template-columns: 1fr auto; gap: 12px 18px; align-items: center;
+    border: 1px solid var(--line-2); border-radius: 14px; padding: 14px 16px;
+    background: var(--panel);
+  }
+  .dispute-card .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+  .dispute-card .id { font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--dim) }
+  .dispute-card .reason {
+    font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+    padding: 3px 9px; border-radius: 999px; background: var(--panel-2); color: #5c5c68;
+  }
+  .dispute-card .amt { font-size: 21px; font-weight: 800 }
+  .dispute-card .msg { grid-column: 1 / -1; font-size: 13px; color: var(--dim); line-height: 1.55 }
+  .dispute-card .due { font-size: 12px; color: var(--dim) }
+  .dispute-card .due b { color: var(--ink) }
+  .dispute-card .due.urgent b { color: #b91c1c }
+  .dispute-card button { width: auto; margin: 0 }
+
+  .agent-arg { border: 1px solid var(--line-2); border-radius: 14px; padding: 14px 16px; background: var(--panel) }
+  .agent-arg .role { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--dim) }
+  .agent-arg .act { font-size: 19px; font-weight: 800; margin: 6px 0 8px }
+  .agent-arg ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; color: #3b3b44 }
+  .agent-arg .cites { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap }
+  .agent-arg .cite {
+    font-family: ui-monospace, monospace; font-size: 11px; padding: 2px 7px;
+    border-radius: 5px; background: var(--panel-2); color: #5c5c68;
+  }
+
+  .gate-row { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--line) }
+  .gate-row:last-child { border-bottom: none }
+  .gate-row .mark { flex: 0 0 18px; font-weight: 800 }
+  .gate-row .mark.ok { color: #16a34a }
+  .gate-row .mark.bad { color: #b91c1c }
+  .gate-row .what { font-size: 13px; line-height: 1.55 }
+  .gate-row .what code { font-size: 12px }
+
+  .ev-row { display: grid; grid-template-columns: 44px 1fr; gap: 10px; padding: 6px 0; font-size: 13px; line-height: 1.55 }
+  .ev-row .eid { font-family: ui-monospace, monospace; font-weight: 700; color: var(--dim) }
+  .ev-row.missing .eid { color: #b91c1c }
+  .ev-row .txt { color: #3b3b44 }
 </style>
 </head>
 <body>
@@ -600,6 +651,7 @@
     <div class="tab" id="tabShop">🛒 Shop (Channel3 → Tribunal)</div>
     <div class="tab active" id="tabDirect">⚖️ Direct Adjudication</div>
     <div class="tab" id="tabTimeline">📅 Audit Timeline (Bryntum)</div>
+    <div class="tab" id="tabDisputes">⚔️ Dispute Desk</div>
   </div>
 
   <!-- The claim this project makes is "nothing is paid unless the agents agree".
@@ -726,6 +778,33 @@
       <div class="panel"><h2>The Debate</h2><div class="grid3" id="agents"></div></div>
       <div id="dissentWrap" class="hidden panel"><h2>Dissent Map</h2><div id="dissent"></div></div>
       <div id="paypalWrap" class="hidden panel"><h2>PayPal Settlement</h2><div id="paypal"></div></div>
+    </div>
+  </div>
+
+  <!-- DISPUTE DESK
+       PayPal already provides the machinery for disputes. What it does not provide is the
+       decision: which ones to contest, which to settle, on what evidence, and a record of
+       why. Three agents argue, and a gate decides — the same shape as the purchase flow,
+       aimed at money that is already out the door instead of money about to leave. -->
+  <div id="disputesMode" class="hidden">
+    <div class="panel">
+      <h2>Dispute desk — when a payment is challenged</h2>
+      <p class="proof-lede">
+        A dispute lands. Three agents read the evidence, argue both sides, and propose an
+        action. A gate then decides whether that action is allowed. The agents propose;
+        the gate disposes — the same rule the purchase flow uses, and the reason a model
+        cannot talk its way into a refund.
+      </p>
+      <div id="disputeSource" class="dispute-note"></div>
+      <div id="disputeList" class="dispute-list"></div>
+    </div>
+
+    <div id="disputeResult" class="hidden">
+      <div id="disputeDecision" class="decision"><div class="big"></div><div class="vote"></div></div>
+      <div class="panel"><h2>The arguments</h2><div class="grid3" id="disputeAgents"></div></div>
+      <div class="panel"><h2>The gate</h2><div id="disputeGate"></div></div>
+      <div class="panel"><h2>Evidence</h2><div id="disputeEvidence"></div></div>
+      <div id="disputeActionWrap" class="hidden panel"><h2>Carry it out</h2><div id="disputeAction"></div></div>
     </div>
   </div>
 
@@ -1207,13 +1286,14 @@ function renderTimeline(host, resources, events) {
 }
 
 function showTab(which) {
-  const map = { shop: 'shopMode', direct: 'directMode', timeline: 'timelineMode' };
+  const map = { shop: 'shopMode', direct: 'directMode', timeline: 'timelineMode', disputes: 'disputesMode' };
   for (const [k, id] of Object.entries(map)) {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', k !== which);
     const tab = document.getElementById('tab' + k[0].toUpperCase() + k.slice(1));
     if (tab) tab.classList.toggle('active', k === which);
   }
+  if (which === 'disputes') loadDisputes();
   if (which === 'timeline') {
     // Bryntum's CSS and UMD bundle come from a CDN and take seconds on a cold
     // cache. Measured: the tab looked dead for ~6s because the panel was there
@@ -1230,6 +1310,7 @@ function showTab(which) {
 document.getElementById('tabShop').onclick = () => showTab('shop');
 document.getElementById('tabDirect').onclick = () => showTab('direct');
 document.getElementById('tabTimeline').onclick = () => showTab('timeline');
+document.getElementById('tabDisputes').onclick = () => showTab('disputes');
 
 // --- Run the money-gate suite, in the page, and show its raw output ---
 bindRun('proofBtn', { idle: '▶ Run the money-gate test suite', busy: 'Running tests/moneyGate.test.js…' }, async () => {
@@ -1516,6 +1597,157 @@ bindRun('run', { idle: '⚖️ Convene the Tribunal', busy: 'Agents deliberating
 
   await refreshLedger();
 });
+
+// ── Dispute desk ───────────────────────────────────────────────────────
+// Reads what PayPal has (or the labelled sample), then runs the agents and the gate on
+// whichever one the reader picks. Nothing here decides anything by itself: the decision
+// comes from /api/dispute/review, and the action is only offered when the gate allowed it.
+
+let __disputes = [];
+
+async function loadDisputes() {
+  const host = document.getElementById('disputeList');
+  const noteEl = document.getElementById('disputeSource');
+  if (!host) return;
+  host.innerHTML = '<p class="proof-note">Loading disputes…</p>';
+
+  try {
+    const d = await api('/api/disputes');
+    __disputes = d.items || [];
+
+    if (noteEl) {
+      noteEl.className = 'dispute-note ' + (d.source === 'paypal' ? 'paypal' : 'sample');
+      noteEl.textContent = d.source === 'paypal'
+        ? `Live from PayPal (${d.mode}). ${d.count} open dispute${d.count === 1 ? '' : 's'}.`
+        : `Sample set — ${d.note || 'PayPal has no open disputes for this merchant.'}`;
+    }
+
+    host.innerHTML = __disputes.map((it, i) => {
+      const urgent = it.deadlineHours != null && it.deadlineHours <= 24;
+      const due = it.deadlineHours != null
+        ? `<div class="due${urgent ? ' urgent' : ''}">Response due in <b>${it.deadlineHours}h</b></div>`
+        : `<div class="due">No deadline on record</div>`;
+      return `<div class="dispute-card">
+        <div class="top">
+          <span class="id">${it.dispute_id}</span>
+          <span class="reason">${(it.reason || '').replace(/_/g, ' ')}</span>
+          <span class="amt">$${Number(it.amount).toFixed(2)}</span>
+        </div>
+        <div>${due}</div>
+        <div class="msg">“${(it.buyer_message || 'No message from the buyer.').slice(0, 220)}”</div>
+        <div><button class="btn-secondary" data-dispute="${i}">⚔️ Review this dispute</button></div>
+      </div>`;
+    }).join('');
+
+    host.querySelectorAll('button[data-dispute]').forEach((b) => {
+      b.onclick = () => reviewDispute(Number(b.dataset.dispute));
+    });
+  } catch (e) {
+    host.innerHTML = `<p class="proof-note">Could not load disputes: ${e.message}</p>`;
+  }
+}
+
+async function reviewDispute(i) {
+  const it = __disputes[i];
+  if (!it) return;
+  const wrap = document.getElementById('disputeResult');
+  const dec = document.getElementById('disputeDecision');
+  wrap.classList.remove('hidden');
+  dec.querySelector('.big').textContent = 'reviewing…';
+  dec.querySelector('.vote').textContent = 'Three agents are reading the evidence.';
+
+  let r;
+  try {
+    r = await api('/api/dispute/review', {
+      dispute: it, order: it.order || null, deadlineHours: it.deadlineHours,
+    });
+  } catch (e) {
+    dec.querySelector('.big').textContent = 'error';
+    dec.querySelector('.vote').textContent = e.message;
+    return;
+  }
+
+  const label = {
+    CONTEST: 'CONTEST — submit evidence and fight it',
+    OFFER_PARTIAL: 'OFFER PARTIAL — refund part of it',
+    REFUND: 'REFUND — give it back in full',
+    ACCEPT: 'ACCEPT — accept the claim',
+    ESCALATE: 'ESCALATE — let PayPal decide',
+  };
+
+  dec.className = 'decision ' + (r.action === 'CONTEST' ? 'approved'
+    : r.action === 'ACCEPT' ? 'denied' : 'conditional');
+  dec.querySelector('.big').textContent = r.action;
+  dec.querySelector('.vote').textContent =
+    `${label[r.action] || r.action}` +
+    (r.downgradedFrom ? ` · the gate refused ${r.downgradedFrom}` : '') +
+    (r.requiresHuman ? ' · a human must authorise this' : ' · inside the auto limit');
+
+  // The three arguments
+  const ag = document.getElementById('disputeAgents');
+  const roles = [['advocate', 'Merchant Advocate'], ['challenger', 'Buyer Advocate'], ['arbiter', 'Arbiter']];
+  ag.innerHTML = roles.map(([k, name]) => {
+    const a = r.arguments?.[k] || {};
+    const reasons = (a.reasons || []).map((x) => `<li>${x}</li>`).join('') || '<li>—</li>';
+    const cites = (a.cites || []).map((x) => `<span class="cite">${x}</span>`).join('');
+    return `<div class="agent-arg">
+      <div class="role">${name} · ${a.model || 'deterministic'}</div>
+      <div class="act">${a.action || '—'}</div>
+      <ul>${reasons}</ul>
+      <div class="cites">${cites || '<span class="cite">no citations</span>'}</div>
+    </div>`;
+  }).join('');
+
+  // The gate
+  const gateEl = document.getElementById('disputeGate');
+  const passed = r.gate?.passed || [];
+  const failed = r.gate?.failed || [];
+  gateEl.innerHTML = [
+    ...passed.map((g) => `<div class="gate-row"><div class="mark ok">✓</div><div class="what"><code>${g}</code></div></div>`),
+    ...failed.map((g) => `<div class="gate-row"><div class="mark bad">✗</div><div class="what"><code>${g}</code></div></div>`),
+  ].join('') || '<p class="proof-note">The gate returned no rows.</p>';
+
+  if (r.deterministicFallback?.length) {
+    gateEl.innerHTML += `<p class="proof-note">A model reply could not be parsed, so the deterministic argument
+      stood in for: <b>${r.deterministicFallback.join(', ')}</b>. The gate judged the substitute.</p>`;
+  }
+
+  // Evidence
+  const evEl = document.getElementById('disputeEvidence');
+  evEl.innerHTML = (r.evidence || []).map((e) =>
+    `<div class="ev-row${e.ok ? '' : ' missing'}"><div class="eid">${e.id}</div>
+      <div class="txt"><b>${e.label}</b> — ${e.detail}</div></div>`).join('');
+
+  // Carry it out — only where the gate actually allows it
+  const actionWrap = document.getElementById('disputeActionWrap');
+  const actionEl = document.getElementById('disputeAction');
+  const canAct = !r.requiresHuman && ['REFUND', 'ACCEPT', 'OFFER_PARTIAL'].includes(r.action);
+  if (canAct) {
+    actionWrap.classList.remove('hidden');
+    actionEl.innerHTML = `<p class="proof-note">The gate allows this without a human. Pressing the button
+      calls PayPal with the action the gate approved.</p>
+      <button class="btn-secondary" id="disputeActBtn">Send ${r.action} to PayPal</button>
+      <div id="disputeActOut" class="proof-note"></div>`;
+    document.getElementById('disputeActBtn').onclick = async () => {
+      const out = document.getElementById('disputeActOut');
+      out.textContent = 'sending…';
+      try {
+        const res = await api('/api/dispute/act', {
+          disputeId: r.disputeId, action: r.action, amount: r.amount, note: 'Approved by the Tuesday dispute desk.',
+        });
+        out.innerHTML = res.ok
+          ? `<span class="ok">✓ sent</span> — ${res.action} accepted by PayPal (${res.mode}).`
+          : `<span class="bad">✗ ${res.error || 'failed'}</span>`;
+      } catch (e) {
+        out.innerHTML = `<span class="bad">✗ ${e.message}</span>`;
+      }
+    };
+  } else {
+    actionWrap.classList.add('hidden');
+  }
+
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 // ── Mode badges ────────────────────────────────────────────────────────
 // Which integrations are actually live in this process. A judge should never have
