@@ -6,13 +6,15 @@
   "main": "src/webmcp.js",
   "scripts": {
     "start": "node demo/server.mjs",
-    "test": "node tests/moneyGate.test.js && node tests/disputeDesk.test.js && node test_triad.mjs",
+    "test": "node tests/moneyGate.test.js && node tests/disputeDesk.test.js && node tests/tribunal.fixture.mjs && node test_triad.mjs",
     "test:gate": "node tests/moneyGate.test.js",
     "test:smoke": "bash tests/smoke.sh",
     "test:live": "node tests/paypalSandbox.live.mjs",
     "test:channel3": "node tests/channel3.live.mjs",
     "demo": "node demo/server.mjs",
-    "test:disputes": "node tests/disputeDesk.test.js"
+    "test:disputes": "node tests/disputeDesk.test.js",
+    "test:tribunal": "node tests/tribunal.fixture.mjs",
+    "test:tribunal:llm": "node tests/tribunal.fixture.mjs --llm"
   },
   "keywords": [
     "paypal",

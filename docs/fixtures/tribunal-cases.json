@@ -1,0 +1,139 @@
+{
+  "_comment": "Golden fixture for the purchase tribunal. Both the deterministic path and the live three-model path are measured against these exact cases, reason strings included. A fixture defect once looked like a model defect: C06 was written with reason 'test', the models correctly refused for lack of a stated reason, and the run was read as a gate disagreement. Fixing the fixture changed the result, not the code.",
+  "version": 1,
+  "created": "2026-10-26",
+  "cases": [
+    {
+      "id": "C01",
+      "item": "Vitamin C serum — restock for the skincare line",
+      "amount": 42,
+      "reason": "The current bottle runs out on Thursday; the line ships Friday.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 0,
+      "kind": "first_time",
+      "recentPurchases": [],
+      "expect_deterministic": "APPROVED",
+      "expect_llm": "APPROVED",
+      "note": "Ordinary restock, well inside the month."
+    },
+    {
+      "id": "C02",
+      "item": "Niacinamide Day Cream 50ml",
+      "amount": 34,
+      "reason": "Two of five review units are empty and the tester panel starts Monday.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 158,
+      "kind": "first_time",
+      "recentPurchases": [],
+      "expect_deterministic": "CONDITIONAL",
+      "expect_llm": "CONDITIONAL",
+      "note": "81% of the $42 left — headroom condition."
+    },
+    {
+      "id": "C03",
+      "item": "Retinol Night Serum 30ml",
+      "amount": 48,
+      "reason": "Replacing the current bottle that oxidised after the cap was left open.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 120,
+      "kind": "first_time",
+      "recentPurchases": [],
+      "expect_deterministic": "APPROVED",
+      "expect_llm": "APPROVED",
+      "note": "60% of the $80 left. Replacing a ruined bottle must not attract a price-cut condition."
+    },
+    {
+      "id": "C04",
+      "item": "Hyaluronic Acid Serum 30ml",
+      "amount": 42,
+      "reason": "A duplicate of a bottle bought eleven days ago.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 42,
+      "kind": "first_time",
+      "recentPurchases": [
+        "hyaluronic acid serum 30ml"
+      ],
+      "expect_deterministic": "CONDITIONAL",
+      "expect_llm": "DENIED",
+      "note": "Duplicate. G4 (not a repeat) reads recentPurchases and returns against, so the deterministic path decides CONDITIONAL: the models or the gate both refuse to buy it outright, and no money is released without the condition being met. An earlier expectation of APPROVED here was wrong — a duplicate should never be a plain yes."
+    },
+    {
+      "id": "C05",
+      "item": "Industrial floor polisher — warehouse",
+      "amount": 500,
+      "reason": "The floor is scuffed and the landlord complained.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 0,
+      "kind": "first_time",
+      "recentPurchases": [],
+      "expect_deterministic": "DENIED",
+      "expect_llm": "DENIED",
+      "note": "Hard breach: $500 against a $200 month."
+    },
+    {
+      "id": "C06",
+      "item": "Bulk packaging sleeves (5,000 units)",
+      "amount": 180,
+      "reason": "Current stock covers nine days; the printer needs ten days' notice.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 0,
+      "kind": "first_time",
+      "recentPurchases": [],
+      "expect_deterministic": "CONDITIONAL",
+      "expect_llm": "CONDITIONAL",
+      "note": "90% of the month in one item. G3 fires on the monthly share, not on the remainder — this is G3 doing its own job, not a headroom condition."
+    },
+    {
+      "id": "C07",
+      "item": "Licence renewal — design software, one seat",
+      "amount": 65,
+      "reason": "The seat expires on the 30th and the designer uses it daily.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 130,
+      "kind": "first_time",
+      "recentPurchases": [],
+      "expect_deterministic": "CONDITIONAL",
+      "expect_llm": "CONDITIONAL",
+      "note": "93% of the $70 left."
+    },
+    {
+      "id": "C08",
+      "item": "Sample kit — twelve miniature bottles",
+      "amount": 22,
+      "reason": "Three buyers asked for samples before committing to a wholesale order.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 100,
+      "kind": "first_time",
+      "recentPurchases": [],
+      "expect_deterministic": "APPROVED",
+      "expect_llm": "APPROVED",
+      "note": "22% of the $100 left, tied to a stated buyer request."
+    },
+    {
+      "id": "C09",
+      "item": "Temperature logger for the storage room",
+      "amount": 95,
+      "reason": "Last week's heat spike reached 31C and no record exists to prove otherwise.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 90,
+      "kind": "first_time",
+      "recentPurchases": [],
+      "expect_deterministic": "CONDITIONAL",
+      "expect_llm": "CONDITIONAL",
+      "note": "86% of the $110 left."
+    },
+    {
+      "id": "C10",
+      "item": "Serum pump caps (200 units)",
+      "amount": 12,
+      "reason": "The current caps leak on one in twenty bottles.",
+      "monthlyBudget": 200,
+      "spentThisMonth": 188,
+      "kind": "first_time",
+      "recentPurchases": [],
+      "expect_deterministic": "CONDITIONAL",
+      "expect_llm": "CONDITIONAL",
+      "note": "100% of the $12 left. Tiny amount, no headroom: the case that proves the share, not the amount, is what matters."
+    }
+  ]
+}
