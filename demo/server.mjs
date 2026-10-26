@@ -135,8 +135,12 @@ const server = createServer(async (req, res) => {
     const combined = [];
     for (const [label, file] of files) {
       const r = await runOne(file);
-      const p = (r.out.match(/PASS /g) || []).length;
-      const f = (r.out.match(/FAIL /g) || []).length;
+      // Count verdict lines, not the substring "PASS ". test_triad.mjs prints "  PASS"
+      // (two leading spaces) while the .test.js files print "PASS ", so the old pattern
+      // matched nothing in the end-to-end file and its three assertions were silently
+      // dropped from the total the page reported.
+      const p = (r.out.match(/^\s*PASS\b/gm) || []).length;
+      const f = (r.out.match(/^\s*FAIL\b/gm) || []).length;
       totalPassed += p;
       totalFailed += f;
       if (r.code !== 0) worstCode = r.code || 1;

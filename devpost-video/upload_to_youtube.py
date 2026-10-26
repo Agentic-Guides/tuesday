@@ -40,7 +40,7 @@ so the reason a payment was allowed is readable from the payment record itself.
 
 Built for the PayPal AI Hackathon. Everything in this video is the demo running:
   - APPROVED (2 for, 0 against) and DENIED (1 for, 2 against) on a real budget
-  - the money-gate test suite, run from the page: 31 passed, 0 failed
+  - the whole test suite, run from the page: 135 passed, 0 failed (money-gate 44, dispute desk 88, end to end 3)
   - the candidate grid, the dissent map, the AG Grid ledger, the Bryntum timeline
 
 Code: https://github.com/Agentic-Guides/triad
