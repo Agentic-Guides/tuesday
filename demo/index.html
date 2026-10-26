@@ -674,7 +674,7 @@
           <span class="step-sub">A DENIED verdict never reaches PayPal — the gate returns
           <code>not_approved</code> before any network call.</span>
         </div>
-        <button id="proofBtn">▶ Run the money-gate test suite</button>
+        <button id="proofBtn">▶ Run the whole test suite</button>
         <div id="proofOut" class="hidden">
           <div id="proofVerdict" class="proof-verdict"></div>
           <pre id="proofLog"></pre>
@@ -873,7 +873,12 @@ async function api(path, body) {
   // Cutting it at 15s makes the button look dead and the Shop tab look broken — which
   // is exactly what happened while recording the demo. /api/grid takes 74.5s for 16
   // cells x 3 agents, so the ceiling here is 240s.
-  const TIMEOUT_MS = (path === '/api/grid' || path === '/api/shop') ? 240000 : 15000;
+  // /api/proof now spawns three test files (moneyGate, disputeDesk, end to end) and takes
+  // about 17s measured. With the old 15s ceiling the abort fired first and the page showed
+  // "the tribunal could not be reached: signal is aborted without reason" instead of the
+  // result — the proof button was the one thing a judge is asked to press.
+  const SLOW = new Set(['/api/grid', '/api/shop', '/api/proof']);
+  const TIMEOUT_MS = SLOW.has(path) ? 240000 : 15000;
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
     const r = await fetch(path, {
@@ -1313,7 +1318,7 @@ document.getElementById('tabTimeline').onclick = () => showTab('timeline');
 document.getElementById('tabDisputes').onclick = () => showTab('disputes');
 
 // --- Run the money-gate suite, in the page, and show its raw output ---
-bindRun('proofBtn', { idle: '▶ Run the money-gate test suite', busy: 'Running tests/moneyGate.test.js…' }, async () => {
+bindRun('proofBtn', { idle: '▶ Run the whole test suite', busy: 'Running moneyGate + disputeDesk + end to end…' }, async () => {
   const r = await api('/api/proof');
   const out = document.getElementById('proofOut');
   const verdict = document.getElementById('proofVerdict');

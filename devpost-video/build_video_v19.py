@@ -708,10 +708,19 @@ async def record_take():
         await mark("03")
         await click(cdp, IDS["shop_run"])            # ← 商品を探すボタンを実クリック
         # 商品グリッドが出るまで待つ（実測 20秒）
-        for _ in range(60):
+        # /api/shop runs five products through three live models; measured 24-30s. The old
+        # 60-try loop (30s) sometimes expired one second before the grid rendered, so the take
+        # showed the spinner and no product photographs at all.
+        # Measured with a standalone CDP probe: rows and images appear at 20.0s, and the
+        # five product photographs arrive as 44x44 thumbnails inside the rows. Waiting for a
+        # row count alone was not enough — an earlier take logged "rows=5 imgs=5" and still
+        # showed nothing but the spinner, because the grid renders a beat after the rows do.
+        # Wait for rows AND images, up to 70s.
+        for _ in range(140):
             await asyncio.sleep(0.5)
             n = await cdp.js("document.querySelectorAll('#candidateGrid .ag-row').length")
-            if (n or 0) >= 3:
+            im = await cdp.js("document.querySelectorAll('#candidateGrid img').length")
+            if (n or 0) >= 3 and (im or 0) >= 1:
                 break
         n = await cdp.js("document.querySelectorAll('#candidateGrid .ag-row').length")
         im = await cdp.js("document.querySelectorAll('#candidateGrid img').length")
@@ -725,9 +734,17 @@ async def record_take():
             "return {top:Math.round(r.top+window.scrollY),h:Math.round(r.height)};})()")
         print("    candidateGrid:", gp, flush=True)
         if gp and gp["h"] > 40:
-            # グリッドの上端が画面上から 220px の位置に来るようにする
-            await cdp.js("window.scrollTo(0,%d)" % max(0, gp["top"] - 220))
-            await asyncio.sleep(0.8)
+            # The thumbnails are 44x44 inside a 232px-tall grid — legible as data, not as
+            # product photographs. Scroll so the grid sits high on the page, then scale the
+            # grid up 1.9x from its top-left corner so the photographs are actually readable
+            # on screen. Measured: the image sits at top=252 after scrolling to grid-420.
+            await cdp.js("window.scrollTo(0,%d)" % max(0, gp["top"] - 420))
+            await asyncio.sleep(0.6)
+            await cdp.js(
+                "(()=>{const g=document.getElementById('candidateGrid');if(!g)return;"
+                "g.style.transformOrigin='top left';g.style.transform='scale(1.9)';"
+                "g.style.marginBottom='260px';})()")
+            await asyncio.sleep(1.0)
         ok = await cdp.js(
             "(()=>{const g=document.getElementById('candidateGrid');if(!g)return false;"
             "const r=g.getBoundingClientRect();"
@@ -903,8 +920,20 @@ async def record_take():
         ok = await scroll_to(cdp, IDS["proof_panel"], -30)
         print("    proof panel in frame:", ok, flush=True)
         await click(cdp, IDS["proof_btn"])
+        # ★ The proof button now runs the whole suite (moneyGate + disputeDesk + end to end,
+        #   132 assertions) instead of the purchase gate alone, so it takes far longer than
+        #   the 44-assertion version did. Measured: the previous 200-try wait (about 100s)
+        #   expired while the panel still said "Running tests/moneyGate.test.js…", and the take
+        #   moved on with an empty verdict. Wait for the *running* label to disappear as well
+        #   as for a verdict to appear, and allow up to about five minutes.
+        # The verdict element is empty until the run finishes and is filled with
+        # "✓ N passed" on success or "✗ …" on failure. Watching it is enough; an earlier
+        # version also inspected the button label and never matched because the label
+        # contains its own ellipsis character, so it waited the whole timeout for a state
+        # that never arrived.
         await wait_for(cdp, "(()=>{const v=document.getElementById('proofVerdict');"
-                            "return v && v.textContent.trim().length>0;})()", tries=200)
+                            "if(!v)return false;const t=(v.textContent||'').trim();"
+                            "return t.length>0 && /[0-9]/.test(t);})()", tries=600)
         pv = await cdp.js("document.getElementById('proofVerdict').textContent.trim()")
         print("    proof:", pv[:120], flush=True)
         await asyncio.sleep(1.5)

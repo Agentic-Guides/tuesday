@@ -106,23 +106,51 @@ const server = createServer(async (req, res) => {
   // can watch the claim get proven without leaving the browser. The test file is
   // spawned as a child process; its stdout is returned verbatim. Nothing here is
   // summarised or prettified — if the suite fails, the failure text is what you see.
+  // The whole suite, not only the purchase gate. The page's proof button used to run
+  // tests/moneyGate.test.js alone and report "44 passed", which was true of that file and
+  // misleading about the project: the dispute desk's 88 assertions were never mentioned.
+  // A judge who ran `npm test` saw a different number than the video did. Run the same
+  // three files `npm test` runs, in the same order, and report one total.
   if (req.method === 'GET' && url.pathname === '/api/proof') {
     const { spawn } = await import('node:child_process');
     const root = resolve(__dir, '..');
-    const file = join(root, 'tests', 'moneyGate.test.js');
-    return await new Promise((resolve) => {
+    const files = [
+      ['moneyGate', join(root, 'tests', 'moneyGate.test.js')],
+      ['disputeDesk', join(root, 'tests', 'disputeDesk.test.js')],
+      ['triad (end to end)', join(root, 'test_triad.mjs')],
+    ];
+    const runOne = (file) => new Promise((resolve) => {
       const child = spawn(process.env.TRIAD_NODE || process.execPath, [file], { cwd: root });
       let out = '';
-      const cap = (b) => { if (out.length < 60000) out += b.toString(); };
+      const cap = (b) => { if (out.length < 40000) out += b.toString(); };
       child.stdout.on('data', cap);
       child.stderr.on('data', cap);
-      child.on('error', (e) => json(res, 500, { ok: false, error: String(e && e.message) }));
-      child.on('close', (code) => {
-        const passed = (out.match(/PASS /g) || []).length;
-        const failed = (out.match(/FAIL /g) || []).length;
-        json(res, 200, { ok: code === 0, exitCode: code, passed, failed, output: out });
-        resolve();
-      });
+      child.on('error', (e) => resolve({ code: 1, out: String(e && e.message) }));
+      child.on('close', (code) => resolve({ code, out }));
+    });
+
+    let totalPassed = 0;
+    let totalFailed = 0;
+    let worstCode = 0;
+    const combined = [];
+    for (const [label, file] of files) {
+      const r = await runOne(file);
+      const p = (r.out.match(/PASS /g) || []).length;
+      const f = (r.out.match(/FAIL /g) || []).length;
+      totalPassed += p;
+      totalFailed += f;
+      if (r.code !== 0) worstCode = r.code || 1;
+      combined.push(`### ${label} — ${p} passed, ${f} failed (exit ${r.code})\n${r.out.trim()}`);
+    }
+
+    const out = combined.join('\n\n');
+    return json(res, 200, {
+      ok: worstCode === 0 && totalFailed === 0,
+      exitCode: worstCode,
+      passed: totalPassed,
+      failed: totalFailed,
+      files: files.map(([label]) => label),
+      output: out,
     });
   }
 

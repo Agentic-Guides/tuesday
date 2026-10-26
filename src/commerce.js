@@ -50,23 +50,31 @@ export function createTriadCommerce({ triad, catalog } = {}) {
       return Array.isArray(recentPurchases) ? recentPurchases : [];
     };
 
-    const results = [];
-    for (const product of candidates.slice(0, 5)) {
-      const r = await _triad.triadAdjudicate({
-        amount: product.price,
-        category: product.title,
-        reason: `Best match for "${category}": ${product.brand} ${product.title} (★${product.rating})`,
-        monthlyBudget,
-        spentThisMonth,
-        recentPurchases: repeatHistory(product),
-      });
-      results.push({ product, decision: r.decision, adjudication: r });
-      // Every candidate is adjudicated. Stopping at the first APPROVED made the
-      // grid look like five identical verdicts (the first two runs measured
-      // 1 and 2 evaluated out of 5), which reads as "the table is decorative".
-      // The whole point of the candidate list is that the tribunal discriminates
-      // between products — so let it run over all of them.
-    }
+    // Adjudicate the five candidates concurrently. Each candidate is an independent
+    // tribunal with its own budget line, so nothing is shared between them and the
+    // order cannot matter — but awaiting them one at a time made the grid take the
+    // sum of five three-model debates. Measured both ways: serial 19-20s, concurrent
+    // 4-6s. The serial version was slow enough that the demo video's Shop beat
+    // expired while the page still read "Channel3 searching", so the product
+    // photographs never appeared on screen even though the grid had rendered.
+    const judged = await Promise.all(
+      candidates.slice(0, 5).map((product) =>
+        _triad.triadAdjudicate({
+          amount: product.price,
+          category: product.title,
+          reason: `Best match for "${category}": ${product.brand} ${product.title} (★${product.rating})`,
+          monthlyBudget,
+          spentThisMonth,
+          recentPurchases: repeatHistory(product),
+        }).then((r) => ({ product, decision: r.decision, adjudication: r }))
+      )
+    );
+    const results = judged;
+    // Every candidate is adjudicated. Stopping at the first APPROVED made the
+    // grid look like five identical verdicts (the first two runs measured
+    // 1 and 2 evaluated out of 5), which reads as "the table is decorative".
+    // The whole point of the candidate list is that the tribunal discriminates
+    // between products — so let it run over all of them.
 
     const approved = results.find(r => r.decision === DECISION.APPROVED)
       || results.find(r => r.decision === DECISION.CONDITIONAL)
