@@ -13,7 +13,7 @@
  * Run:  node tests/moneyGate.test.js     (zero config, no API key)
  */
 import { createTriad } from '../src/webmcp.js';
-import { DECISION } from '../src/triad.js';
+import { DECISION, adjudicate, makeAgent, ROLES, deterministicReason, deterministicJudge } from '../src/triad.js';
 import { buildReceipt, verifyReceipt, receiptCustomId, hashFromCustomId } from '../src/receipt.js';
 
 let pass = 0, fail = 0;
@@ -250,6 +250,70 @@ console.log('\n=== 8. A model cannot vote past a failed gate ===');
   check('a negative purchase is DENIED', adjudicate({ id: 'PN', amount: -50, category: 'x', reason: 'y' }, fineArgs).decision === 'DENIED');
   check('a $0 purchase records why', adjudicate({ id: 'P0', amount: 0, category: 'x', reason: 'y' }, fineArgs).voidedReason === 'G1_amount_positive');
 }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // 16. A purchase that spends the month's last money carries a condition
+  //
+  // Measured before: with $200 a month and $158 spent, a $34 purchase consumed 81% of
+  // the $42 that remained and came back APPROVED with no caveat — the headroom warning
+  // (G5) had been demoted to a warning and nothing converted it into a condition on the
+  // LLM path, because deterministicJudge() only ran when the models were disabled.
+  // The same case now proceeds under a stated "last purchase this month" condition.
+  // ═══════════════════════════════════════════════════════════════════════════════
+  console.log("\n=== 16. The last of the month's money comes with a condition ===");
+  {
+    const k = { monthlyBudget: 200, spentThisMonth: 158, recentPurchases: [] };
+    const w = makeAgent(ROLES.WITNESS, 'test', k);
+    const p = { category: 'day cream', amount: 34, reason: 'the tester panel starts Monday' };
+
+    // Both sides agree it is sound — the headroom fact must still add a condition.
+    const forBoth = { verdict: 'for', reasons: ['sound'] };
+    const judged = deterministicJudge(w, p, forBoth, forBoth);
+    check('81% of the remaining budget yields a condition', Boolean(judged.conditions),
+      String(judged.conditions));
+    check('the condition is about headroom, not a price cut',
+      /last purchase|no further discretionary/i.test(String(judged.conditions)),
+      String(judged.conditions));
+    check('the reason names the share of the remainder',
+      (judged.reasons || []).some((r) => /81%/.test(r)), JSON.stringify(judged.reasons));
+
+    // 60% of the remainder is not "no headroom" — an oxidised bottle replaced is APPROVED.
+    const k2 = { monthlyBudget: 200, spentThisMonth: 120, recentPurchases: [] };
+    const w2 = makeAgent(ROLES.WITNESS, 'test', k2);
+    const p2 = { category: 'night serum', amount: 48, reason: 'the bottle oxidised' };
+    const judged2 = deterministicJudge(w2, p2, forBoth, forBoth);
+    check('60% of the remaining budget carries no condition', judged2.conditions === null,
+      String(judged2.conditions));
+
+    // And the whole tribunal, deterministically, on both cases.
+    const run = (agentSet, purchase) => {
+      const A = deterministicReason(agentSet.advocate, purchase);
+      const B = deterministicReason(agentSet.auditor, purchase);
+      const W = deterministicJudge(agentSet.witness, purchase, A, B);
+      return adjudicate(purchase, { advocate: A, auditor: B, witness: W }).decision;
+    };
+    const set1 = {
+      advocate: makeAgent(ROLES.ADVOCATE, 't', k),
+      auditor: makeAgent(ROLES.AUDITOR, 't', k),
+      witness: makeAgent(ROLES.WITNESS, 't', k),
+    };
+    const set2 = {
+      advocate: makeAgent(ROLES.ADVOCATE, 't', k2),
+      auditor: makeAgent(ROLES.AUDITOR, 't', k2),
+      witness: makeAgent(ROLES.WITNESS, 't', k2),
+    };
+    check('$34 of $42 left decides CONDITIONAL', run(set1, p) === 'CONDITIONAL', run(set1, p));
+    check('$48 of $80 left decides APPROVED', run(set2, p2) === 'APPROVED', run(set2, p2));
+
+    // G5 must no longer be able to veto on its own: 2x48=96 > 80 yet the case approves.
+    const g5 = deterministicReason(makeAgent(ROLES.AUDITOR, 't', k2), p2);
+    check('G5 is recorded as a warning, not a failure',
+      (g5.failedGates || []).includes('G5_survives_double_cost') === false,
+      JSON.stringify(g5.failedGates));
+    check('G5 still reports the warning on the gate record',
+      (g5.gates || []).some((g) => g.id === 'G5_survives_double_cost' && g.warn === true));
+  }
 
 // ---------------------------------------------------------------------------
 console.log(`\n${fail === 0 ? '✅' : '❌'} moneyGate: ${pass} passed, ${fail} failed`);

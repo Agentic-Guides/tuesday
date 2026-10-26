@@ -281,6 +281,21 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  /* ★ What one adjudication actually costs, in tokens. Added because the answer to
+   *   "how many times can I run this?" cannot be derived from a price page — it has to be
+   *   measured. GET returns the running totals since the last reset; POST resets the meter.
+   *   The per-call rows name the agent and model so a three-model tribunal is separable
+   *   from a five-product Shop run. */
+  if (req.method === 'GET' && url.pathname === '/api/usage') {
+    return json(res, 200, triad._runner && triad._runner.usageTotals
+      ? triad._runner.usageTotals()
+      : { calls: 0, total_tokens: 0, note: 'runner does not expose usage' });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/usage/reset') {
+    if (triad._runner && triad._runner.resetUsage) triad._runner.resetUsage();
+    return json(res, 200, { ok: true, reset: true });
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/ledger') {
     return json(res, 200, triad.triadGetLedger());
   }

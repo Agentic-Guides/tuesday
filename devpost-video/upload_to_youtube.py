@@ -25,7 +25,7 @@ import json
 import os
 import sys
 
-VIDEO = os.path.expanduser("~/Desktop/scs-sec/_rec/tuesday_submission_v9_1080p.mp4")
+VIDEO = os.path.expanduser("~/Desktop/triad-clean/devpost-media/tuesday_submission_final_1080p.mp4")
 CLIENT_SECRET = os.path.expanduser("~/AppData/Local/hermes/client_secret.json")
 TOKEN = os.path.expanduser("~/AppData/Local/hermes/youtube_token.json")
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
@@ -43,7 +43,8 @@ Built for the PayPal AI Hackathon. Everything in this video is the demo running:
   - the whole test suite, run from the page: 135 passed, 0 failed (money-gate 44, dispute desk 88, end to end 3)
   - the candidate grid, the dissent map, the AG Grid ledger, the Bryntum timeline
 
-Code: https://github.com/Agentic-Guides/triad
+Code: https://github.com/Agentic-Guides/tuesday
+Live demo: https://tuesday-paypal.onrender.com  (PayPal sandbox, three live models)
 Run it: git clone, then `node demo/server.mjs` — no API keys needed.
 
 Sponsor tools: PayPal (Orders v2 REST) · AG Grid · Bryntum · Channel3 · WebMCP
