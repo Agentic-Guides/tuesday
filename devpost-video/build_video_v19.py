@@ -1,0 +1,1001 @@
+"""Tuesday submission video v17 -- record one continuous take over CDP.
+
+v17 = v9 + the 2026-10-24 fixes. What changed in the product since v9/v16:
+  * Ledger rows now carry a Source column (demo / live). The seeded six rows are
+    labelled "demo", anything adjudicated live is "live". The take must show it.
+  * adjudicate() order fixed: votesAgainst >= 2 -> DENIED before any condition path.
+  * triadVerifyReceipt now calls PayPal GET /orders/{id} instead of reading memory.
+  * The $42 renewal reads CONDITIONAL at budget $60 (it was $100 in the old copy).
+
+The narration is unchanged (10 Kokoro clips, 94.06s) and still accurate.
+
+Same shape as build_video.py (which produced the v8 take), rewritten against the
+demo as it exists now. What changed and why:
+
+  * v8 drove a page whose input ids have since moved, and it never opened the
+    three proof buttons the README points a judge at. The proof panel did not
+    exist when v8 was shot.
+  * The timeline now renders on the light Bryntum theme. v8's take has the black
+    grid on it, which reads as a rendering fault in a light page.
+  * The narration is unchanged -- 10 Kokoro clips, 94.06s -- and it is still
+    accurate. Only the picture needed to catch up.
+
+Timing comes from devpost-video/plan_v9.py (BEATS), measured from the audio files.
+The take records the whole session in one pass; assembly cuts it at in-points.
+
+Run:  python build_video_v9.py            # record + build
+      python build_video_v9.py --build-only
+"""
+import asyncio
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.request
+
+import websockets
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from plan_v19_beats import BEATS, IDS  # noqa: E402
+
+FFMPEG = r"C:\Users\hohoh\AppData\Local\hermes\tools\ffmpeg-9.0.1-win32-x64\bin\ffmpeg.exe"
+FFPROBE = FFMPEG.replace("ffmpeg.exe", "ffprobe.exe")
+CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+APP_URL = "http://localhost:8787/"
+REC_DIR = os.path.expanduser("~/Desktop/scs-sec/_rec")  # 既存の素材置き場（変更なし）
+VID_DIR = os.path.expanduser("~/Desktop/ht_projyekuto/triad/devpost-video")  # 音声の置き場
+OUT_DIR = os.path.expanduser("~/Desktop/triad-clean/devpost-media")  # ★出力先
+TAKE = os.path.join(REC_DIR, "take_v19.mp4")
+OUTPUT = os.path.join(OUT_DIR, "tuesday_submission_v18_1080p.mp4")
+CDP_PORT = 9333
+KIOSK_PROFILE = os.path.expanduser("~/chrome-kiosk-prof")
+APP_PROFILE = os.path.expanduser("~/chrome-bu-rec")  # --app モード用（2026-10-19 の記録）
+TAKE_TAG = "take=v18"
+
+# Wall-clock target for each step, so the take lines up with the assembly cuts.
+STEP = {tag: audio + pad for tag, audio, pad, _ in BEATS}
+
+
+# ---------------------------------------------------------------- OS cursor
+# ★CDP のマウスイベントは OS カーソルを動かさない（2026-10-24 実測）。
+#   gdigrab は OS カーソルを撮るので、録画に動きを出すには SetCursorPos が要る。
+# ★ctypes で Win32 を直接叩く（実測: 24点で0.001秒。PowerShell 版は1点200ms）。
+# ★カーソル軌跡（録画に OS カーソルが写らないため、後で動画に焼き込む）。
+#   実測（2026-10-24）: gdigrab に -draw_mouse 1 を渡しても、この環境では
+#   カーソルがフレームに含まれない。座標を記録して ffmpeg で合成する。
+CURSOR_TRACE = []
+_TRACE_ON = False
+_T0 = 0.0
+
+_OS_CURSOR_OK = False
+try:
+    import ctypes
+    _u32 = ctypes.windll.user32
+    _OS_CURSOR_OK = True
+except Exception:
+    _u32 = None
+
+
+def _os_cursor(x, y):
+    """Move the real Windows pointer so gdigrab records the movement."""
+    if not _OS_CURSOR_OK:
+        return
+    try:
+        _u32.SetCursorPos(int(x), int(y))
+    except Exception:
+        pass
+
+
+
+def find_page(port, url_fragment, timeout=60):
+    """Wait for the page we are actually going to drive.
+
+    Measured failure: Chrome creates an about:blank target at startup, and an
+    older kiosk from a previous run can outlive kill_stale_kiosks(). find_page
+    returned whichever page target came first, the guard tripped on
+    "driving the WRONG tab: about:blank", and the take was lost.
+
+    So: skip about:blank, and keep polling until a page target actually carries
+    the take tag. A target that is still navigating has an empty url and will
+    match on a later pass.
+    """
+    deadline = time.time() + timeout
+    seen = []
+    while time.time() < deadline:
+        try:
+            targets = json.loads(
+                urllib.request.urlopen("http://127.0.0.1:%d/json/list" % port, timeout=5).read()
+            )
+            for t in targets:
+                if t.get("type") != "page":
+                    continue
+                url = t.get("url") or ""
+                if url in ("about:blank", ""):
+                    continue
+                if url_fragment in url:
+                    return t["webSocketDebuggerUrl"]
+                seen.append(url)
+        except Exception:
+            pass
+        time.sleep(1)
+    raise RuntimeError("demo page not on CDP port %d after %ds; saw: %s"
+                       % (port, timeout, seen[-5:] or "no page targets"))
+
+
+class Cdp:
+    def __init__(self, ws):
+        self.ws = ws
+        self.n = 0
+
+    async def cmd(self, method, **params):
+        self.n += 1
+        await self.ws.send(json.dumps({"id": self.n, "method": method, "params": params}))
+        while True:
+            msg = json.loads(await self.ws.recv())
+            if msg.get("id") == self.n:
+                return msg.get("result", {})
+
+    async def js(self, expr):
+        r = await self.cmd("Runtime.evaluate", expression=expr, returnByValue=True, awaitPromise=True)
+        return r.get("result", {}).get("value")
+
+    # ---------------- マウス操作（2026-10-24 追加）----------------
+    # ボスの指摘: 「画面中央にポインタがあってそこからずっと動かない！
+    #             ボタン押したりどのように動くとかが全然無い！」
+    # JS の .click() だけではカーソルが動かず、審査員には「勝手に画面が
+    # 変わる」ようにしか見えない。CDP の Input.dispatchMouseEvent で
+    # 実際にカーソルを移動させ、押し下げ・押し上げを送る。
+
+    async def mouse_move(self, x, y, steps=24, duration=0.85):
+        """カーソルを (x,y) へ滑らかに移動する。
+
+        ★★★根本原因（2026-10-24 実測）★★★
+        CDP の Input.dispatchMouseEvent はページ内の JS イベントを発生させる
+        だけで、【OS のカーソルは動かない】。gdigrab が撮っているのは OS の
+        カーソルなので、動画ではカーソルが画面の隅（97%,98%）に張り付いた
+        ままだった。ボスの指摘「ポイントが動かずに同じ位置で止まったまんま！」
+        「ボタン押したりとかが全然無い」はこれが原因。
+
+        対策: Win32 の SetCursorPos で OS カーソルを実際に動かす。
+        ページ側のイベントも従来どおり送るので、ホバーやクリック反応は保つ。
+        """
+        cur = getattr(self, "_mouse", None) or (x, y)
+        x0, y0 = cur
+        for i in range(1, steps + 1):
+            t = i / steps
+            e = 1 - (1 - t) ** 2          # ease-out
+            px = int(round(x0 + (x - x0) * e))
+            py = int(round(y0 + (y - y0) * e))
+            # ① OS のカーソルを実際に動かす（これが録画に映る）
+            _os_cursor(px, py)
+            # ② ページ側にもイベントを送る（ホバー・反応のため）
+            await self.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=px, y=py,
+                           button="none", buttons=0)
+            # ③ 軌跡を記録する（録画にカーソルが写らないため、後で焼き込む）
+            if _TRACE_ON:
+                CURSOR_TRACE.append([round(time.time() - _T0, 3), px, py])
+            await asyncio.sleep(duration / steps)
+        self._mouse = (x, y)
+
+    async def mouse_click(self, x, y, settle=0.25):
+        """カーソルを移動してから実際にクリックする。"""
+        print("    CLICK (%d,%d)" % (x, y), flush=True)
+        await self.mouse_move(x, y)
+        await asyncio.sleep(0.12)
+        await self.cmd("Input.dispatchMouseEvent", type="mousePressed", x=x, y=y,
+                       button="left", buttons=1, clickCount=1)
+        await asyncio.sleep(0.08)
+        await self.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=x, y=y,
+                       button="left", buttons=0, clickCount=1)
+        await asyncio.sleep(settle)
+
+    async def center_of(self, element_id):
+        """要素の画面座標（中心）を返す。見えていなければスクロールして測る。"""
+        expr = ("(()=>{const e=document.getElementById('%s');"
+                "if(!e)return null;const r=e.getBoundingClientRect();"
+                "if(r.width===0&&r.height===0)return null;"
+                "return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2),"
+                "top:Math.round(r.top),h:Math.round(r.height)};})()" % element_id)
+        return await self.js(expr)
+
+    async def wheel(self, dy, x=None, y=None, steps=None, pause=0.09):
+        """マウスホイールでスクロールする（カーソル位置から）。
+
+        ★実測（2026-10-24）: deltaY を小分けにしすぎると取りこぼす。
+        1回 120px 前後が最も確実（5回×120 で 900px 動いた）。
+        pause は 0.09s 以上必要（0.06s では反映前に次を送って落ちる）。
+        """
+        pos = getattr(self, "_mouse", (960, 500))
+        px = x if x is not None else pos[0]
+        py = y if y is not None else pos[1]
+        if steps is None:
+            steps = max(1, min(12, abs(int(dy)) // 120 or 1))
+        per = int(dy / steps)
+        if per == 0:
+            per = 120 if dy > 0 else -120
+            steps = max(1, abs(int(dy)) // 120)
+        before = None
+        for i in range(steps):
+            await self.cmd("Input.dispatchMouseEvent", type="mouseWheel",
+                           x=px, y=py, deltaX=0, deltaY=per,
+                           button="none", buttons=0)
+            await asyncio.sleep(pause)
+        # 動いたか確認できたら返す
+        await asyncio.sleep(0.15)
+
+
+VERDICT = ("(()=>{const d=document.getElementById('decision');"
+           "const b=d&&d.querySelector('.big');return b?b.textContent.trim():'';})()")
+
+
+# ---------------------------------------------------------------- page actions
+async def scroll_to(cdp, element_id, offset=-30, retries=14):
+    """Put an element at the top of the viewport, and confirm it actually stayed there.
+
+    Measured failures, in order:
+
+      1. scrollIntoView ran in the same tick the verdict arrived, while #decision
+         still had height 0 -- the beat held 13s on a form with no verdict in frame.
+
+      2. The document grows while AG Grid and the Bryntum scheduler lay out, so a
+         scroll that landed correctly slides back off screen.
+
+      3. The page sets `html { scroll-behavior: smooth }`. Every scroll is animated,
+         so reading scrollY straight after the call returns the OLD position -- the
+         frame check was measuring the wrong moment and reporting "did not land"
+         even when the scroll was on its way.
+
+    So: turn smooth scrolling off for the duration of the take, scroll, then poll
+    until the element's measured position is actually inside the viewport.
+    """
+    await cdp.js("document.documentElement.style.scrollBehavior='auto'")
+
+    # ★ホイールで「マウスらしく」スクロールする（2026-10-24 追加）。
+    #   瞬時に飛ぶと、審査員には「画面が切り替わった」ようにしか見えない。
+    #   まず対象要素の位置までホイールで寄せ、最後に正確な位置へ合わせる。
+    target_pos = await cdp.js(
+        "(()=>{const e=document.getElementById('%s');if(!e)return null;"
+        "const r=e.getBoundingClientRect();"
+        "return {absTop: Math.round(r.top + window.scrollY)};})()" % element_id)
+    if target_pos:
+        cur_y = await cdp.js("Math.round(window.scrollY)") or 0
+        delta = target_pos["absTop"] - cur_y + offset
+        if abs(delta) > 80:
+            # 大きい移動はホイールで段階的に
+            steps = min(10, max(3, abs(delta) // 220))
+            await cdp.wheel(delta, steps=steps, pause=0.07)
+            await asyncio.sleep(0.2)
+
+    expr = ("(()=>{const e=document.getElementById('%s');if(!e)return 'noel';"
+            "e.scrollIntoView({block:'start',behavior:'instant'});window.scrollBy(0,%d);"
+            "const r=e.getBoundingClientRect();"
+            "return (r.top>=-4&&r.top<innerHeight*0.7&&r.height>20)?'ok':"
+            "('off top='+Math.round(r.top)+' h='+Math.round(r.height)+"
+            "' dh='+document.documentElement.scrollHeight+' y='+Math.round(window.scrollY));})()"
+            % (element_id, offset))
+    last = None
+    for i in range(retries):
+        await asyncio.sleep(0.5 if i == 0 else 0.9)
+        last = await cdp.js(expr)
+        if last == "ok":
+            return True
+    print("    scroll_to(%s) did not land: %s" % (element_id, last), flush=True)
+    return False
+
+
+async def scroll_top(cdp):
+    """Go to the top of the page and put the pointer somewhere visible.
+
+    ★実測（2026-10-24）: OS カーソルはスクロールでは動かない。ページを上へ
+    戻すと、直前まで画面内にあったカーソルが画面外に取り残されて録画から
+    消える（t=45s のフレームで確認）。スクロールのたびに画面内へ置き直す。
+    """
+    await cdp.js("window.scrollTo(0,0)")
+    await asyncio.sleep(0.35)
+    await cdp.mouse_move(960, 430, steps=16, duration=0.55)
+
+
+async def set_field(cdp, element_id, text, per_char=0.11):
+    """Type a value the way a person would: clear, then one character at a time.
+
+    Setting .value directly leaves the page's own listeners unfired, and the
+    screenshot then shows an empty box next to a verdict that used the value.
+    """
+    # ★まず実際にマウスでそのフィールドをクリックする（2026-10-24）。
+    #   フォーカスを JS で当てるだけだとカーソルが動かず、
+    #   審査員には「勝手に数字が入った」ように見える。
+    pos = await cdp.center_of(element_id)
+    if pos:
+        x = max(2, min(pos["x"], 1918))
+        y = max(2, min(pos["y"], 1076))
+        print("    type into %s at (%d,%d)" % (element_id, x, y), flush=True)
+        await cdp.mouse_click(x, y, settle=0.2)
+    await cdp.js("(()=>{const e=document.getElementById('%s');if(e){e.focus();e.select();}})()" % element_id)
+    await asyncio.sleep(0.35)
+    await cdp.js("(()=>{const e=document.getElementById('%s');if(e){e.value='';"
+                 "e.dispatchEvent(new Event('input',{bubbles:true}));}})()" % element_id)
+    await asyncio.sleep(0.4)
+    for ch in str(text):
+        await cdp.js("(()=>{const e=document.getElementById('%s');if(e){e.value=e.value+%s;"
+                     "e.dispatchEvent(new Event('input',{bubbles:true}));}})()"
+                     % (element_id, json.dumps(ch)))
+        await asyncio.sleep(per_char)
+    await asyncio.sleep(0.5)
+
+
+async def click(cdp, element_id):
+    """★実際にマウスを動かしてクリックする（2026-10-24）。
+
+    以前は JS の .click() だけだったので、画面ではカーソルが中央に止まったまま
+    勝手に画面が変わっているように見えた（ボスの指摘）。
+    CDP の Input.dispatchMouseEvent でカーソルを移動させてから押す。
+    """
+    # まず要素を画面内に入れる（スクロール後に再計測して本当に入ったか確認）
+    await cdp.js("document.documentElement.style.scrollBehavior='auto'")
+    for _ in range(10):
+        info = await cdp.js(
+            "(()=>{const e=document.getElementById('%s');if(!e)return null;"
+            "const r=e.getBoundingClientRect();"
+            "return {top:Math.round(r.top),bottom:Math.round(r.bottom),"
+            "h:Math.round(r.height),vh:window.innerHeight};})()" % element_id)
+        if not info or info["h"] == 0:
+            break
+        top, bottom, vh = info["top"], info["bottom"], info["vh"]
+        if top >= 60 and bottom <= vh - 60:
+            break   # 十分画面内
+        # 画面外 → ホイールで寄せる
+        delta = top - int(vh * 0.35)
+        await cdp.js("window.scrollBy(0,%d)" % delta)
+        await asyncio.sleep(0.25)
+
+    pos = await cdp.center_of(element_id)
+    if not pos:
+        print("    click(%s): not found" % element_id, flush=True)
+        await cdp.js("(()=>{const b=document.getElementById('%s');if(b&&!b.disabled)b.click();})()" % element_id)
+        return
+    # 座標が画面外なら、もう一度だけ中央寄せを試す
+    if pos["y"] < 20 or pos["y"] > 1010:
+        await cdp.js("(()=>{const e=document.getElementById('%s');"
+                     "if(e)e.scrollIntoView({block:'center',behavior:'instant'});})()" % element_id)
+        await asyncio.sleep(0.4)
+        pos = await cdp.center_of(element_id) or pos
+    if pos["y"] < 20 or pos["y"] > 1010:
+        print("    click(%s): out of view (y=%d), js fallback" % (element_id, pos["y"]), flush=True)
+        await cdp.js("(()=>{const b=document.getElementById('%s');if(b&&!b.disabled)b.click();})()" % element_id)
+        return
+    if False:
+        # 見えない／存在しない場合は JS クリックにフォールバック
+        print("    click(%s): not visible, js fallback" % element_id, flush=True)
+        await cdp.js("(()=>{const b=document.getElementById('%s');if(b&&!b.disabled)b.click();})()" % element_id)
+        return
+
+    x, y = pos["x"], pos["y"]
+    # 画面外なら座標をクランプ
+    x = max(2, min(x, 1918))
+    y = max(2, min(y, 1076))
+    print("    click(%s) at (%d,%d)" % (element_id, x, y), flush=True)
+    await cdp.mouse_click(x, y)
+    # クリックが効かなかった場合の保険（disabled でないのに反応しない時）
+    await asyncio.sleep(0.15)
+
+
+async def wait_verdict(cdp, want, tries=80):
+    """Wait for the verdict line to reach `want`.
+
+    ★実測（2026-10-24）: LLM の出力は毎回わずかに揺れる。DENIED を期待して
+    DISSENT が返ると tries を使い切るまで待ち続け、beat が 106 秒に膨らんだ。
+    tries を現実的な値にして、外れたら即座に記録して先へ進む。
+    """
+    for _ in range(tries):
+        await asyncio.sleep(0.4)
+        v = await cdp.js(VERDICT)
+        if v and (want is None or v == want):
+            return v
+    v = await cdp.js(VERDICT)
+    print("    ★verdict did not reach %s (got %r) - continuing" % (want, v), flush=True)
+    return v
+
+
+async def wait_for(cdp, expr, tries=80):
+    for _ in range(tries):
+        await asyncio.sleep(0.4)
+        if await cdp.js(expr):
+            return True
+    return False
+
+
+async def beat(tag, hold):
+    """Hold the current picture for the length of this beat."""
+    print("  beat %s  holding %.1fs" % (tag, hold), flush=True)
+    await asyncio.sleep(hold)
+
+
+# ---------------------------------------------------------------- recording
+def kill_stale_kiosks(port):
+    """Chromium exposes many page targets on one debug port. find_page() would
+    drive whichever comes first while ffmpeg records a different window.
+
+    Get-Process has no CommandLine on PowerShell 5.1, so close the targets over
+    CDP first, then drop every chrome process.
+    """
+    try:
+        tl = json.loads(urllib.request.urlopen(
+            "http://127.0.0.1:%d/json/list" % port, timeout=5).read())
+        for t in tl:
+            if t.get("type") == "page":
+                try:
+                    urllib.request.urlopen(
+                        "http://127.0.0.1:%d/json/close/%s" % (port, t.get("id")), timeout=5).read()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    subprocess.run(["powershell", "-NoProfile", "-Command",
+                    "Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force"],
+                   capture_output=True, timeout=90)
+    time.sleep(3)
+
+
+def get_chrome_rect(fragment="Tuesday"):
+    """★Chrome kiosk の実際のウィンドウ矩形を返す (x, y, w, h)。
+
+    ボスの要求（2026-10-19）: 「PC画面全体ではなくブラウザ画面だけを撮る」。
+    gdigrab の -offset_x/-offset_y/-video_size にこの矩形を渡せば、
+    タスクバーも他のウィンドウも入らない。
+    """
+    script = (
+        "$ErrorActionPreference='SilentlyContinue'; "
+        "Add-Type -TypeDefinition 'using System;"
+        "using System.Runtime.InteropServices;"
+        "[StructLayout(LayoutKind.Sequential)] public struct RECT {"
+        "public int Left, Top, Right, Bottom; }"
+        "public class R {"
+        "[DllImport(\"user32.dll\")] public static extern bool GetWindowRect(IntPtr h, out RECT r);"
+        "}'; "
+        "Get-Process chrome | "
+        "Where-Object { $_.MainWindowTitle -like '*" + fragment + "*' } | "
+        "ForEach-Object {"
+        "$r = New-Object RECT; "
+        "[R]::GetWindowRect($_.MainWindowHandle, [ref]$r) | Out-Null; "
+        "Write-Output ($r.Left.ToString() + ',' + $r.Top.ToString() + ',' + "
+        "($r.Right - $r.Left).ToString() + ',' + ($r.Bottom - $r.Top).ToString())"
+        "}"
+    )
+    r = subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                       capture_output=True, text=True, timeout=60)
+    out = (r.stdout or "").strip().split("\n")
+    for line in out:
+        line = line.strip()
+        if "," in line:
+            try:
+                x, y, w, h = [int(v) for v in line.split(",")]
+                return x, y, w, h
+            except Exception:
+                continue
+    return None
+
+
+def minimize_all_windows():
+    """Record-time guard: drop every other window before ffmpeg grabs the desktop.
+
+    Measured failure (2026-10-24): gdigrab captures the whole desktop, so an open
+    chat window sat over the right half of the demo in the finished take. Kiosk
+    is fullscreen but loses the foreground to whatever the user last touched.
+    """
+    script = (
+        "$shell = New-Object -ComObject Shell.Application; "
+        "$shell.MinimizeAll(); "
+        "Start-Sleep -Milliseconds 900"
+    )
+    subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                   capture_output=True, timeout=90)
+    print("  minimized all windows", flush=True)
+
+
+def force_foreground(fragment="Tuesday"):
+    """Bring the kiosk window back to the front by title fragment."""
+    script = (
+        "$ErrorActionPreference='SilentlyContinue'; "
+        "Add-Type -TypeDefinition 'using System;"
+        "using System.Runtime.InteropServices;"
+        "public class W {"
+        "[DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr h);"
+        "[DllImport(\"user32.dll\")] public static extern bool ShowWindow(IntPtr h, int n);"
+        "}'; "
+        "Get-Process chrome | "
+        "Where-Object { $_.MainWindowTitle -like '*" + fragment + "*' } | "
+        "ForEach-Object { [W]::ShowWindow($_.MainWindowHandle, 3) | Out-Null; "
+        "[W]::SetForegroundWindow($_.MainWindowHandle) | Out-Null }"
+    )
+    subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                   capture_output=True, timeout=90)
+
+
+def start_recording(seconds, width=1920, height=1032):
+    """★ブラウザのウィンドウ矩形だけを録画する。
+
+    ボスの要求（2026-10-19）: 「PC画面全体ではなくブラウザ画面だけを撮る」。
+    デスクトップ全体を撮ると、タスクバー・通知・他アプリが映り込む。
+    Chrome kiosk の実矩形を取得し、その範囲だけを gdigrab で切り取る。
+    """
+    height -= height % 2
+    minimize_all_windows()
+    force_foreground("Tuesday")
+    time.sleep(1.2)
+
+    rect = get_chrome_rect("Tuesday")
+    if rect:
+        x, y, w, h = rect
+        # ★ウィンドウ矩形は枠シャドウを含むため画面外に (-8,-8) へはみ出す。
+        #   gdigrab はそれを拒否する（Capture area extends outside window area）。
+        #   画面内にクランプする。
+        SCREEN_W, SCREEN_H = 1920, 1080
+        # ★2026-10-25: ボスがタスクバーを自動非表示にした。実測 work=1920x1080 at 0,0。
+        #   固定値48を引くと下48pxが切り落とされ、1920x992 になって縦が足りなくなる。
+        TASKBAR_H = 0           # 自動非表示（実測: 作業領域 1920x1080）
+        TITLEBAR_H = 40         # --app モードのウィンドウ枠（実測: コンテンツ開始 y=40px）
+        USABLE_TOP = TITLEBAR_H
+        USABLE_BOTTOM = SCREEN_H - TASKBAR_H     # 1032
+        # ★上はタイトルバーを避け、下はタスクバーを避ける。
+        #   両方入れないと「ブラウザ画面だけ」にならない（2026-10-24 実測）。
+        x = max(0, min(x, SCREEN_W - 2))
+        y = max(USABLE_TOP, min(y + TITLEBAR_H, SCREEN_H - 2))
+        w = min(w + (x - rect[0]), SCREEN_W - x)
+        h = min(h + (y - rect[1]) - TITLEBAR_H, USABLE_BOTTOM - y)
+        w -= w % 2
+        h -= h % 2
+        print("  usable area: y=%d..%d (titlebar %d / taskbar %d)"
+              % (USABLE_TOP, USABLE_BOTTOM, TITLEBAR_H, TASKBAR_H), flush=True)
+        print("  recording rect from Chrome: x=%d y=%d %dx%d (raw %s)"
+              % (x, y, w, h, rect), flush=True)
+        offset_x, offset_y = x, y
+        video_w, video_h = w, h
+    else:
+        print("  ★Chrome rect not found - falling back to full desktop", flush=True)
+        offset_x, offset_y = 0, 0
+        video_w, video_h = width, height - (height % 2)
+
+    return subprocess.Popen(
+        [FFMPEG, "-y", "-hide_banner", "-loglevel", "error", "-f", "gdigrab",
+         # ★実測（2026-10-24）: -draw_mouse を省くとカーソルが撮れないことがある。
+         #   1 を明示すると OS カーソルが画面に映る（49%/41% で確認）。
+         "-draw_mouse", "1",
+         "-framerate", "30", "-t", str(seconds),
+         "-offset_x", str(offset_x), "-offset_y", str(offset_y),
+         "-video_size", "%dx%d" % (video_w, video_h), "-i", "desktop",
+         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "12", "-pix_fmt", "yuv420p", TAKE])
+
+
+async def record_take():
+    kill_stale_kiosks(CDP_PORT)
+    subprocess.Popen(
+        # ★--kiosk ではなく --app モードを使う（2026-10-24 実測）
+        #   kiosk は --window-size を無視して常に全画面(1920x1080)になり、
+        #   タスクバーが動画に映り込む。--app モードなら 1920x1032 が効き、
+        #   タスクバー48pxを避けられる。
+        #   ボスの要求「PC画面全体ではなくブラウザ画面だけを撮る」を満たす。
+        [CHROME, "--app=%s?%s" % (APP_URL, TAKE_TAG),
+         "--remote-debugging-port=%d" % CDP_PORT,
+         "--user-data-dir=" + APP_PROFILE, "--no-first-run", "--no-default-browser-check",
+         "--force-device-scale-factor=1", "--hide-scrollbars",
+         "--disk-cache-size=1", "--window-position=0,0", "--window-size=1920,1032",
+         # 2026-10-25: the Google Translate bubble kept appearing in the top-right corner
+         # of the recorded frame. Setting translate.enabled=false in the profile was not
+         # enough -- the bubble is drawn in the browser UI layer, not the page DOM, so the
+         # only reliable way to keep it out of the take is to disable the feature outright
+         # and to give the UI an English locale so "English page, Japanese browser" never
+         # happens. The page itself declares lang="en".
+         "--disable-features=Translate,TranslateUI,TranslateNewUX",
+         "--lang=en-US", "--accept-languages=en-US,en"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # Wait for Chrome itself to answer, then for the tagged page. If the tagged
+    # page never appears, open it explicitly over CDP rather than guessing.
+    ws_url = None
+    for _ in range(45):
+        time.sleep(2)
+        try:
+            ws_url = find_page(CDP_PORT, TAKE_TAG, timeout=3)
+            break
+        except RuntimeError:
+            try:
+                urllib.request.urlopen("http://127.0.0.1:%d/json/new?%s?%s"
+                                       % (CDP_PORT, APP_URL, TAKE_TAG), timeout=5,
+                                       data=b"").read()
+            except Exception:
+                pass
+    if not ws_url:
+        raise RuntimeError("could not get a tagged demo page on port %d" % CDP_PORT)
+
+    async with websockets.connect(ws_url, max_size=8 * 1024 * 1024) as ws:
+        cdp = Cdp(ws)
+        await cdp.cmd("Runtime.enable")
+        href = await cdp.js("location.href")
+        print("driving:", await cdp.js("document.title"), "|", href, flush=True)
+        if TAKE_TAG not in (href or ""):
+            raise RuntimeError("driving the WRONG tab: %s" % href)
+
+        total = sum(STEP.values())
+        # ★実測（2026-10-24）: +60 では足りなかった。live LLM の判定待ち（1回9〜12秒×2回）と
+        #   Bryntum の CDN 読み込みで、実際の録画は 251 秒必要だったのに 208 秒で切れ、
+        #   beat 09/10 の映像が存在しなかった。余裕を180秒に増やす。
+        rec = start_recording(int(total) + 180)
+        started = time.time()
+        # ★カーソル軌跡の記録を有効化（録画の t=0 を基準にする）
+        global _TRACE_ON, _T0
+        _T0 = started
+        _TRACE_ON = True
+        marks = {}
+
+        async def mark(tag):
+            """Record when this beat's picture actually starts, measured from the
+            recording's first frame.
+
+            The plan's in-points used to assume the beats ran back to back from a
+            fixed offset. They do not: waiting for a verdict, a grid, or the
+            scheduler adds real seconds, and the built video then cut to the wrong
+            footage (the ledger beat landed on the proof panel). Stamping each beat
+            as it begins makes the cut independent of those waits.
+            """
+            marks[tag] = round(time.time() - started, 3)
+            print("    [mark] %s at %.2fs" % (tag, marks[tag]), flush=True)
+
+        await asyncio.sleep(2)
+
+        # The page sets `html { scroll-behavior: smooth }`. Every programmatic
+        # scroll is then animated, and a scroll issued while another is still
+        # running lands in the wrong place. Measured: the DENIED verdict ended up
+        # at top=963 (below the fold) with the screenshot showing a bare form.
+        # Kill the animation for the whole take; the camera is the only audience.
+        await cdp.js("document.documentElement.style.scrollBehavior='auto'")
+
+        # ================= v18 scenario (2026-10-24) =====================
+        # The story order now follows the Obsidian script
+        # (_memory/tuesday-video-script-usa.md): failure -> tribunal ->
+        # settlement -> human approval -> ledger. The v17 take showed the
+        # APPROVED case first, which made the judge watch a success before
+        # knowing what problem it solved.
+        #
+        # Every click is a real CDP mouse event at the element's centre, so
+        # the pointer travels across the screen and the button visibly
+        # depresses. That was the whole complaint about v17 ("ポインタが
+        # 中央から動かない").
+
+        # --- 01: THE THUMBNAIL CUT ----------------------------------------
+        # ★2026-10-25 ボス指示「サムネ用に最初に画像入れろ」。
+        #   0秒地点がそのままサムネになるよう、冒頭は「決定が出ている画面」を
+        #   静止で見せる。ここは操作せず、DENIED の赤い判定と 3体の名前が
+        #   同時に映る構図にする（審査員が一覧で見る1枚）。
+        # サムネ用に「判定カードと3体の名前が同時に映る」構図を作る。
+        # まず審理を1回走らせて DENIED を画面に出す（この結果はビート04でも使う）。
+        await cdp.js("showTab('direct')")
+        await scroll_top(cdp)
+        await set_field(cdp, IDS["d_budget"], "1")
+        await set_field(cdp, IDS["d_amount"], "500")
+        await click(cdp, IDS["run"])
+        await wait_verdict(cdp, "DENIED", tries=90)
+        await asyncio.sleep(1.0)
+        # ★2026-10-25 ボス指摘「tuesday が見えずから始まってる」。
+        #   以前は decision カードに寄せていたため、ページ最上部の TUESDAY が
+        #   画面外に出ていた。冒頭はページ先頭に戻し、タイトルと前提文を必ず見せる。
+        #   DENIED の判定はビート04で改めて見せるので、ここでは要らない。
+        await cdp.js("window.scrollTo({top:0,behavior:'instant'})")
+        await asyncio.sleep(0.8)
+        cdp._mouse = (60, 70)                    # カーソルは画面左上へ退避
+        await cdp.mouse_move(120, 96, steps=8, duration=0.3)
+        # 冒頭2秒は無音（ボス指示「セリフ動画が始まって2秒位空けて喋れ」）
+        await asyncio.sleep(2.0)
+        await mark("01")
+        await beat("01", STEP["01"])
+
+        # --- 02: who decides, and why one model is not enough ------------
+        await scroll_top(cdp)
+        await mark("02")
+        await beat("02", STEP["02"])
+
+        # --- 03: THE SHOP -- 5 real products with photographs --------------
+        # ★2026-10-24 新設: 「実物が画面に出ていない」という指摘への対応。
+        #   demo/img/ に商品画像が24枚あり、/api/shop は5商品を実際に評価する。
+        #   ただし 5商品 × 3体の LLM 判定で約20秒かかるので、
+        #   api() のタイムアウトを240秒に延ばしてある（index.html）。
+        await cdp.js("showTab('shop')")
+        await asyncio.sleep(1.0)
+        await cdp.js("document.getElementById('category').value='skincare'")
+        await cdp.js("document.getElementById('budget').value='200'")
+        await scroll_top(cdp)
+        await cdp.mouse_move(960, 300, steps=16, duration=0.6)
+        await mark("03")
+        await click(cdp, IDS["shop_run"])            # ← 商品を探すボタンを実クリック
+        # 商品グリッドが出るまで待つ（実測 20秒）
+        for _ in range(60):
+            await asyncio.sleep(0.5)
+            n = await cdp.js("document.querySelectorAll('#candidateGrid .ag-row').length")
+            if (n or 0) >= 3:
+                break
+        n = await cdp.js("document.querySelectorAll('#candidateGrid .ag-row').length")
+        im = await cdp.js("document.querySelectorAll('#candidateGrid img').length")
+        print("    shop rows=%s imgs=%s" % (n, im), flush=True)
+        # ★実測（2026-10-25）: グリッドの画像は top=1609px にあり、scroll_to では
+        #   画面に収まらなかった（映像に商品写真が1枚も映らなかった）。
+        #   グリッドの絶対座標を取って、画像の行が画面中央に来るよう直接スクロールする。
+        gp = await cdp.js(
+            "(()=>{const g=document.getElementById('candidateGrid');if(!g)return null;"
+            "const r=g.getBoundingClientRect();"
+            "return {top:Math.round(r.top+window.scrollY),h:Math.round(r.height)};})()")
+        print("    candidateGrid:", gp, flush=True)
+        if gp and gp["h"] > 40:
+            # グリッドの上端が画面上から 220px の位置に来るようにする
+            await cdp.js("window.scrollTo(0,%d)" % max(0, gp["top"] - 220))
+            await asyncio.sleep(0.8)
+        ok = await cdp.js(
+            "(()=>{const g=document.getElementById('candidateGrid');if(!g)return false;"
+            "const r=g.getBoundingClientRect();"
+            "const im=document.querySelector('#candidateGrid img');"
+            "if(!im)return false;const ir=im.getBoundingClientRect();"
+            "return ir.top > 60 && ir.bottom < window.innerHeight - 60;})()")
+        print("    product images in frame:", ok, flush=True)
+        # ★人が1つ選ぶ（行を実クリック）
+        row = await cdp.js(
+            "(()=>{const g=document.getElementById('candidateGrid');if(!g)return null;"
+            "const r=g.querySelector('.ag-center-cols-container .ag-row');"
+            "if(!r)return null;const b=r.getBoundingClientRect();"
+            "return {x:Math.round(b.left+b.width*0.45),y:Math.round(b.top+b.height/2)};})()")
+        if row:
+            print("    click product row at (%d,%d)" % (row["x"], row["y"]), flush=True)
+            await cdp.mouse_click(row["x"], row["y"], settle=0.6)
+        await asyncio.sleep(2.0)
+        await beat("03", STEP["03"])
+
+
+
+        # --- 04: THE FAILURE -- budget 1 / amount 500 -> DENIED -----------
+        # ★実測（2026-10-24）: beat 03 で Shop の商品を選ぶと、その文脈が
+        #   審理に引き継がれ、budget=1 / amount=500 でも DISSENT に転ぶ回があった
+        #   （API直接では 5/5 で DENIED だったのに、画面からだと割れた）。
+        #   判定を確実にするため、beat 04 の前にページを読み直して状態を捨てる。
+        await cdp.cmd("Page.enable")
+        await cdp.cmd("Page.reload", ignoreCache=True)
+        for _ in range(80):
+            await asyncio.sleep(0.25)
+            ready = await cdp.js("document.readyState === 'complete' && typeof showTab === 'function'")
+            if ready:
+                break
+        await asyncio.sleep(1.2)
+        await cdp.js("document.documentElement.style.scrollBehavior='auto'")
+        await cdp.js("showTab('direct')")
+        await asyncio.sleep(0.6)
+        await scroll_top(cdp)
+        await scroll_to(cdp, IDS["d_budget"], -220)
+        await mark("04")
+        await set_field(cdp, IDS["d_budget"], "1")
+        await set_field(cdp, IDS["d_amount"], "500")
+        await cdp.mouse_move(960, 300, steps=18, duration=0.6)
+        await click(cdp, IDS["run"])
+        v = await wait_verdict(cdp, "DENIED", tries=60)
+        print("    verdict 04:", v, flush=True)
+        await asyncio.sleep(1.2)
+        ok = await scroll_to(cdp, IDS["decision"], -120)
+        print("    decision in frame:", ok, flush=True)
+        await cdp.mouse_move(400, 300, steps=20, duration=0.7)
+        await beat("04", STEP["04"])
+
+
+
+        # --- 05: the three agents deliberate ------------------------------
+        await scroll_top(cdp)
+        await scroll_to(cdp, IDS["agents"], -40)
+        await mark("05")
+        await beat("05", STEP["05"])
+
+
+
+        # --- 06: THE RESOLUTION -- budget 200 / amount 42 -> APPROVED -----
+        await scroll_top(cdp)
+        await scroll_to(cdp, IDS["d_budget"], -220)
+        await mark("06")
+        await set_field(cdp, IDS["d_budget"], "200")
+        await set_field(cdp, IDS["d_amount"], "42")
+        await cdp.mouse_move(960, 300, steps=18, duration=0.6)
+        await click(cdp, IDS["run"])
+        v = await wait_verdict(cdp, "APPROVED", tries=60)
+        print("    verdict 06:", v, flush=True)
+        await asyncio.sleep(1.2)
+        ok = await scroll_to(cdp, IDS["decision"], -120)
+        print("    decision in frame:", ok, flush=True)
+        await cdp.mouse_move(1180, 300, steps=20, duration=0.7)
+        await beat("06", STEP["06"])
+
+        # --- 06b: the settlement -- the receipt read back from PayPal --------
+        # 06 の APPROVED の直後に、その注文のレシートを PayPal の記録から読み返す。
+        # 台帳の行を実マウスでクリックしないと Trust Receipt が出ないので、
+        # クリックを見せてから検証ボタンを押す。
+        ok = await scroll_to(cdp, IDS["audit_grid"], -60)
+        print("    ledger in frame:", ok, flush=True)
+        row_pt = await cdp.js(
+            "(()=>{const g=document.getElementById('auditGrid');if(!g)return null;"
+            "const r=g.querySelector('.ag-center-cols-container .ag-row');"
+            "if(!r)return null;const b=r.getBoundingClientRect();"
+            "return {x:Math.round(b.left+b.width*0.30),y:Math.round(b.top+b.height/2)};})()")
+        if row_pt:
+            print("    click ledger row at (%d,%d)" % (row_pt["x"], row_pt["y"]), flush=True)
+            await cdp.mouse_move(row_pt["x"], row_pt["y"], steps=16, duration=0.6)
+            await cdp.mouse_click(row_pt["x"], row_pt["y"], settle=0.6)
+        await asyncio.sleep(1.0)
+        have = await cdp.js("!!document.getElementById('verifyBtn')")
+        print("    verifyBtn present:", have, flush=True)
+        if have:
+            await click(cdp, IDS["verifyBtn"])
+            got = await wait_for(cdp, "(()=>{const v=document.getElementById('verifyOut');"
+                                      "return v && v.textContent.trim().length>0 "
+                                      "&& v.textContent.indexOf('verifying')<0;})()", tries=160)
+            print("    verify:", (await cdp.js(
+                "(()=>{const v=document.getElementById('verifyOut');"
+                "return v?v.textContent.trim().replace(/\\s+/g,' '):'';})()"))[:160], flush=True)
+            await asyncio.sleep(1.5)
+            # verifyOut はページ最下部にあるので、要素ではなく絶対座標で確実に寄せる
+            ok2 = await scroll_to(cdp, IDS["verifyOut"], -240)
+            if not ok2:
+                await cdp.js("(()=>{const v=document.getElementById('verifyOut');"
+                             "if(!v)return 0;const y=v.getBoundingClientRect().top+window.scrollY;"
+                             "window.scrollTo({top:Math.max(0,y-260),behavior:'instant'});return 1;})()")
+                await asyncio.sleep(0.6)
+                ok2 = await scroll_to(cdp, IDS["verifyOut"], -240)
+            print("    verify out in frame:", ok2, flush=True)
+            await cdp.mouse_move(900, 560, steps=18, duration=0.6)
+        await asyncio.sleep(0.5)
+
+
+        # --- 07: THE DISPUTE DESK -- a real dispute from PayPal --------------
+        await cdp.js("showTab('disputes')")
+        await asyncio.sleep(2.0)
+        await wait_for(cdp, "(()=>{const l=document.getElementById('disputeList');"
+                            "return l && l.querySelectorAll('.dispute-card').length>0;})()", tries=120)
+        n_cards = await cdp.js("document.querySelectorAll('.dispute-card').length")
+        print("    dispute cards:", n_cards, flush=True)
+        ok = await scroll_to(cdp, IDS["dispute_list"], -80)
+        print("    dispute list in frame:", ok, flush=True)
+        await cdp.mouse_move(300, 300, steps=20, duration=0.7)
+        await mark("07")
+        await beat("07", STEP["07"])
+
+        # --- 08: the tribunal argues over the real dispute -------------------
+        # The first card is PP-R-XBB-10194468: a payment this tribunal authorised,
+        # then the buyer disputed. The review runs the three live models.
+        btn = await cdp.js("(()=>{const b=document.querySelector('button[data-dispute=\"0\"]');"
+                           "if(!b)return null;const r=b.getBoundingClientRect();"
+                           "return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};})()")
+        if btn:
+            print("    review click at (%d,%d)" % (btn["x"], btn["y"]), flush=True)
+            await cdp.mouse_click(btn["x"], btn["y"], settle=0.6)
+        await wait_for(cdp, "(()=>{const d=document.querySelector('#disputeDecision .big');"
+                            "return d && d.textContent.trim().length>0 "
+                            "&& d.textContent.trim()!=='reviewing\u2026';})()", tries=200)
+        verdict = await cdp.js("document.querySelector('#disputeDecision .big').textContent.trim()")
+        print("    dispute verdict:", verdict, flush=True)
+        await asyncio.sleep(1.2)
+        ok = await scroll_to(cdp, IDS["dispute_result"], -100)
+        print("    dispute result in frame:", ok, flush=True)
+        await cdp.mouse_move(1200, 350, steps=20, duration=0.7)
+        await mark("08")
+        await beat("08", STEP["08"])
+
+        # --- 09: EVIDENCE E3 -- the stamp in the payment matches the ledger ----
+        ok = await scroll_to(cdp, IDS["dispute_evidence"], -120)
+        print("    evidence in frame:", ok, flush=True)
+        e3 = await cdp.js("(()=>{const rows=Array.from(document.querySelectorAll('.ev-row'));"
+                          "const r=rows.find(x=>(x.innerText||'').indexOf('E3')===0);"
+                          "return r ? r.innerText.replace(/\\n/g,' | ').slice(0,200) : 'E3 not found';})()")
+        print("    E3:", e3, flush=True)
+        # カーソルを E3 の行へ実際に動かす（視線を誘導する）
+        e3pt = await cdp.js("(()=>{const rows=Array.from(document.querySelectorAll('.ev-row'));"
+                            "const r=rows.find(x=>(x.innerText||'').indexOf('E3')===0);"
+                            "if(!r)return null;const b=r.getBoundingClientRect();"
+                            "return {x:Math.round(b.left+120),y:Math.round(b.top+b.height/2)};})()")
+        if e3pt:
+            await cdp.mouse_move(e3pt["x"], e3pt["y"], steps=24, duration=0.9)
+        await mark("09")
+        await beat("09", STEP["09"])
+
+        # --- 10: the proof a judge can re-run -------------------------------
+        await cdp.js("showTab('direct')")
+        await asyncio.sleep(1.0)
+        ok = await scroll_to(cdp, IDS["proof_panel"], -30)
+        print("    proof panel in frame:", ok, flush=True)
+        await click(cdp, IDS["proof_btn"])
+        await wait_for(cdp, "(()=>{const v=document.getElementById('proofVerdict');"
+                            "return v && v.textContent.trim().length>0;})()", tries=200)
+        pv = await cdp.js("document.getElementById('proofVerdict').textContent.trim()")
+        print("    proof:", pv[:120], flush=True)
+        await asyncio.sleep(1.5)
+        ok = await scroll_to(cdp, IDS["proof_verdict"], -200)
+        print("    proof verdict in frame:", ok, flush=True)
+        await mark("10")
+        await beat("10", STEP["10"])
+
+        # --- 11: close -------------------------------------------------------
+        await cdp.js("showTab('direct')")
+        await scroll_top(cdp)
+        await cdp.mouse_move(960, 620, steps=26, duration=1.0)
+        await mark("11")
+        await beat("11", STEP["11"])
+
+        _TRACE_ON = False
+        rec.wait()
+        tp = os.path.join(VID_DIR, "cursor_trace_v19.json")
+        json.dump(CURSOR_TRACE, open(tp, "w"), indent=0)
+        print("cursor trace: %d points -> %s" % (len(CURSOR_TRACE), tp), flush=True)
+        mp = os.path.join(VID_DIR, "marks_v19.json")
+        json.dump(marks, open(mp, "w"), indent=2)
+        print("marks:", json.dumps(marks), flush=True)
+        print("take recorded:", TAKE, os.path.getsize(TAKE), "bytes", flush=True)
+
+
+# ---------------------------------------------------------------- assembly
+def probe(path, entries):
+    r = subprocess.run([FFPROBE, "-v", "error", "-show_entries", entries,
+                        "-of", "default=nw=1:nk=1", path],
+                       capture_output=True, text=True, timeout=180)
+    return (r.stdout or "").strip().split("\n")
+
+
+# In-points into take_v9.mp4, in seconds from the start of the recording.
+# Filled from the take once it exists; the beats run back to back from t=2.
+def load_inpoints():
+    """Beat start times in the take, measured while recording (marks_v19.json).
+
+    Not estimated from the plan: waits for verdicts and late layout add real
+    seconds, and a fixed offset cut the ledger beat onto the proof panel.
+    """
+    p = os.path.join(VID_DIR, "marks_v19.json")
+    if os.path.exists(p):
+        marks = json.load(open(p))
+        if all(tag in marks for tag, _, _, _ in BEATS):
+            return marks
+    return None
+
+
+def build(inpoints):
+    inputs, fc = [], []
+    for i, (tag, audio, pad, _note) in enumerate(BEATS):
+        start = inpoints[tag]
+        dur = audio + pad
+        inputs += ["-ss", str(start), "-t", str(dur), "-i", TAKE]
+        inputs += ["-i", os.path.join(VID_DIR, "vo_v20_%s.wav" % tag)]
+        vi, ai = i * 2, i * 2 + 1
+        fc.append(
+            "[%d:v]scale=1920:1080:force_original_aspect_ratio=decrease,"
+            "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=#f0eadf,fps=30,"
+            "tpad=stop_mode=clone:stop_duration=60,trim=duration=%.3f,setpts=PTS-STARTPTS[v%d]"
+            % (vi, dur, i))
+        # narration + the rest of the beat as silence, so picture and audio
+        # are exactly the same length and concat cannot drift
+        fc.append("[%d:a]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=0:%.3f,asetpts=PTS-STARTPTS[a%d]"
+                  % (ai, dur, i))
+    fc.append("%sconcat=n=%d:v=1:a=1[vout][aout]"
+              % ("".join("[v%d][a%d]" % (i, i) for i in range(len(BEATS))), len(BEATS)))
+
+    cmd = [FFMPEG, "-y", "-hide_banner", "-loglevel", "error"] + inputs + [
+        "-filter_complex", ";".join(fc), "-map", "[vout]", "-map", "[aout]",
+        "-c:v", "libx264", "-preset", "slow", "-b:v", "10000k", "-maxrate", "12000k",
+        "-bufsize", "20000k", "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "4.1",
+        "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", OUTPUT]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    print("exit:", r.returncode, flush=True)
+    if r.returncode:
+        print((r.stderr or "")[-800:], flush=True)
+        return False
+    print("output:", OUTPUT, os.path.getsize(OUTPUT), "bytes", flush=True)
+    print(probe(OUTPUT, "format=duration,bit_rate:stream=width,height"), flush=True)
+    return True
+
+
+if __name__ == "__main__":
+    if "--build-only" not in sys.argv:
+        asyncio.run(record_take())
+    ip = load_inpoints()
+    if ip:
+        build(ip)
+    else:
+        print("no inpoints_v9.json yet -- take is recorded, set the in-points and re-run "
+              "with --build-only", flush=True)

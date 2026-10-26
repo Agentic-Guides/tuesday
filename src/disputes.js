@@ -93,14 +93,38 @@ export function toUsd(amount, currency) {
   const rate = DISPUTE_GATE.FX_TO_USD[code];
   // An unknown currency is treated as if the amount were enormous, so it needs a human.
   if (rate == null) return { usd: Number.POSITIVE_INFINITY, known: false, code };
-  return { usd: Number(amount) * rate, known: true, code };
+  // An amount that is not a number is not "small". Measured: a dispute whose amount
+  // arrives as { value, currency_code } under the wrong key yields NaN, and NaN > 50
+  // is false, so the ceiling check passed and the gate returned autoExecute: true with
+  // the reason "D2_within_auto_limit_USD_NaNusd". A missing amount is an unknown
+  // amount, and an unknown amount is a human's call — the same rule as an unknown
+  // currency.
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n < 0) {
+    return { usd: Number.POSITIVE_INFINITY, known: false, code: `${code}_INVALID_AMOUNT` };
+  }
+  return { usd: n * rate, known: true, code };
 }
 
 export function collectEvidence(dispute, order = null) {
   const items = [];
   const reason = dispute?.dispute_reason || dispute?.reason || DISPUTE_REASON.OTHER;
-  const amount = Number(dispute?.dispute_amount?.value ?? dispute?.amount ?? 0);
-  const currency = String(dispute?.dispute_amount?.currency_code || dispute?.currency || 'USD').toUpperCase();
+  // PayPal sends the disputed sum as `dispute_amount: { value, currency_code }`. Any
+  // other shape — a bare number, or `amount: { value }` written by a caller who guessed
+  // the field name — used to collapse to NaN through Number({...}). Read every shape
+  // that carries an amount instead of silently losing it, and let toUsd() hold the line
+  // when nothing usable is present.
+  const moneySrc = dispute?.dispute_amount || dispute?.amount || null;
+  const rawAmount = (moneySrc && typeof moneySrc === 'object')
+    ? (moneySrc.value ?? moneySrc.amount ?? null)
+    : moneySrc;
+  const amount = rawAmount == null ? NaN : Number(rawAmount);
+  const currency = String(
+    (moneySrc && typeof moneySrc === 'object' ? moneySrc.currency_code : null)
+    || dispute?.currency_code
+    || dispute?.currency
+    || 'USD'
+  ).toUpperCase();
   const fx = toUsd(amount, currency);
   const txns = dispute?.disputed_transactions || [];
   const txn = txns[0] || {};

@@ -10,7 +10,7 @@
 import assert from 'node:assert';
 import {
   collectEvidence, deterministicDisputeReasoning, finaliseDispute,
-  runDisputeGate, DISPUTE_ACTION, DISPUTE_REASON, DISPUTE_GATE,
+  runDisputeGate, toUsd, DISPUTE_ACTION, DISPUTE_REASON, DISPUTE_GATE,
 } from '../src/disputes.js';
 
 let pass = 0, fail = 0;
@@ -348,6 +348,100 @@ console.log('\n=== 14. Every action is validated server-side ===');
   check('an unknown action is rejected',
     !Object.values(DISPUTE_ACTION).includes('DROP_TABLE'));
 }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // §15  An amount that is not a number is not a small amount
+  //
+  // Measured before the fix: a dispute whose sum arrived as `amount: { value }` (the
+  // wrong key — PayPal sends `dispute_amount`) became NaN through Number({...}), and
+  // `NaN > 50` is false, so D2 reported "within_auto_limit_USD_NaNusd" and the gate
+  // returned autoExecute: true. An unreadable sum must reach a human, the same way an
+  // unreadable currency does.
+  // ═══════════════════════════════════════════════════════════════════════════════
+  console.log('\n=== 15. An unreadable amount requires a human ===');
+  {
+    const evidence = {
+      reason: DISPUTE_REASON.MERCHANDISE_OR_SERVICE_NOT_RECEIVED,
+      amount: NaN, currency: 'USD',
+      items: [
+        { id: 'E1', ok: true, present: true, label: 'order: present',    detail: 'O-1' },
+        { id: 'E2', ok: true, present: true, label: 'capture: present',  detail: 'TX-1' },
+        { id: 'E3', ok: true, present: true, label: 'ledger: present',   detail: 'hash' },
+        { id: 'E4', ok: true, present: true, label: 'tracking: present', detail: '1Z999' },
+        { id: 'E5', ok: true, present: true, label: 'delivery: present', detail: 'signed' },
+      ],
+    };
+    const args = {
+      advocate:   { action: 'CONTEST', reasons: ['delivered'], cites: ['E1', 'E2', 'E4', 'E5'] },
+      challenger: { action: 'CONTEST', reasons: ['agreed'],    cites: ['E1'] },
+      arbiter:    { action: 'CONTEST', reasons: ['contest'],  cites: ['E1', 'E2', 'E3', 'E4', 'E5'] },
+    };
+    const out = finaliseDispute({ dispute: { dispute_id: 'X', reason: evidence.reason, amount: NaN },
+                                  evidence, arguments: args, deadlineHours: 72 });
+
+    check('an unreadable amount does not auto-execute (was true before the fix)',
+      out.autoExecute === false, `autoExecute=${out.autoExecute}`);
+    check('an unreadable amount requires a human', out.requiresHuman === true);
+    check('the gate records why the amount was rejected',
+      out.gate.passed.some((g) => g.includes('INVALID_AMOUNT')),
+      JSON.stringify(out.gate.passed.filter((g) => g.startsWith('D2'))));
+    check('an unreadable amount is never reported as within the auto limit',
+      !out.gate.passed.some((g) => g.includes('within_auto_limit')));
+  }
+
+  {
+    // toUsd is the single place that decides whether a sum is a number at all.
+    check('toUsd: NaN is unknown', toUsd(NaN, 'USD').known === false);
+    check('toUsd: undefined is unknown', toUsd(undefined, 'USD').known === false);
+    check('toUsd: a negative sum is unknown', toUsd(-100, 'USD').known === false);
+    check('toUsd: 42 USD is known', toUsd(42, 'USD').known === true);
+    check('toUsd: 42 USD stays 42', toUsd(42, 'USD').usd === 42);
+    check('toUsd: 8000 JPY is 51.20 USD', toUsd(8000, 'JPY').usd === 51.2);
+    check('toUsd: an unknown currency is unknown', toUsd(42, 'XYZ').known === false);
+  }
+
+  {
+    // Every shape that carries a sum has to be read. A caller who guesses the field name
+    // must not silently lose the number and get a gate that calls it small.
+    const shapes = [
+      ['dispute_amount{value}', { dispute_amount: { value: '42.00', currency_code: 'USD' } }, 42, 'USD'],
+      ['amount{value}',         { amount: { value: '42.00', currency_code: 'USD' } },          42, 'USD'],
+      ['amount number',         { amount: 42 },                                               42, 'USD'],
+      ['amount string',         { amount: '42.00' },                                          42, 'USD'],
+      ['currency_code only',    { amount: 42, currency_code: 'JPY' },                         42, 'JPY'],
+    ];
+    for (const [name, d, wantAmount, wantCurrency] of shapes) {
+      const ev = collectEvidence({ dispute_id: 'X', reason: DISPUTE_REASON.OTHER, ...d }, {});
+      check(`${name}: amount read as ${wantAmount}`, ev.amount === wantAmount, `got ${ev.amount}`);
+      check(`${name}: currency read as ${wantCurrency}`, ev.currency === wantCurrency, `got ${ev.currency}`);
+    }
+  }
+
+  {
+    // Regression in the other direction: a readable sum behaves exactly as before.
+    const base = {
+      reason: DISPUTE_REASON.MERCHANDISE_OR_SERVICE_NOT_RECEIVED, currency: 'USD',
+      items: [
+        { id: 'E1', ok: true, present: true, label: 'order: present',    detail: 'O-1' },
+        { id: 'E2', ok: true, present: true, label: 'capture: present',  detail: 'TX-1' },
+        { id: 'E4', ok: true, present: true, label: 'tracking: present', detail: '1Z999' },
+        { id: 'E5', ok: true, present: true, label: 'delivery: present', detail: 'signed' },
+      ],
+    };
+    const args = {
+      advocate:   { action: 'CONTEST', reasons: ['delivered'], cites: ['E1', 'E2', 'E4', 'E5'] },
+      challenger: { action: 'CONTEST', reasons: ['agreed'],    cites: ['E1'] },
+      arbiter:    { action: 'CONTEST', reasons: ['contest'],  cites: ['E1', 'E2', 'E4', 'E5'] },
+    };
+    const big = finaliseDispute({ dispute: { dispute_id: 'X', reason: base.reason, amount: 9999 },
+                                  evidence: { ...base, amount: 9999 }, arguments: args, deadlineHours: 72 });
+    check('a readable sum over the limit still requires a human', big.requiresHuman === true);
+
+    const small = finaliseDispute({ dispute: { dispute_id: 'X', reason: base.reason, amount: 42 },
+                                    evidence: { ...base, amount: 42 }, arguments: args, deadlineHours: 72 });
+    check('a readable small CONTEST still auto-executes, as before', small.autoExecute === true);
+  }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} disputeDesk: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

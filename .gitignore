@@ -75,3 +75,6 @@ devpost-media/tuesday_submission_v18_final.mp4
 # README and the Devpost form) and is 18-20MB per cut; two cuts in git would make
 # every clone 38MB heavier for a file nobody needs to build the project.
 devpost-media/*.mp4
+
+# local lint config used while auditing the code; not part of the submission
+eslint.config.mjs
