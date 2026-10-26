@@ -5,6 +5,6 @@
  "04": "A $42 renewal comes back CONDITIONAL. The agents only propose — PayPal hands a human the approval link, and money moves after that tap.",
  "05": "One bar per agent vote on the Bryntum timeline: green approved, red blocked, blue neutral. Open disputes stay flagged like a triage board.",
  "06": "Every decision, every vote, every receipt in one AG Grid dashboard. Each row carries the hash stamped into the PayPal order.",
- "07": "Three runnable claims in the page: the whole suite (135 passed, 0 failed), a live verdict grid, and a receipt re-hashed against PayPal.",
+ "07": "Three runnable claims in the page: the whole suite (156 passed, 0 failed), a live verdict grid, and a receipt re-hashed against PayPal.",
  "08": "The 4x4 verdict grid, reproduced live: sixteen adjudications computed on the button. Spend part of the month and every cell turns stricter."
 }

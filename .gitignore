@@ -78,3 +78,7 @@ devpost-media/*.mp4
 
 # local lint config used while auditing the code; not part of the submission
 eslint.config.mjs
+
+# local video tooling (recreate with: python -m venv devpost-video/.venv)
+devpost-video/.venv/
+devpost-video/_beats*/

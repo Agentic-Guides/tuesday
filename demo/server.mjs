@@ -114,9 +114,14 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/proof') {
     const { spawn } = await import('node:child_process');
     const root = resolve(__dir, '..');
+    // The same four files `npm test` runs, in the same order. tests/tribunal.fixture.mjs
+    // was added after the ten tribunal cases became a frozen fixture; without it the page
+    // reported 135 while `npm test` covered 156, which is the mismatch this endpoint exists
+    // to prevent.
     const files = [
       ['moneyGate', join(root, 'tests', 'moneyGate.test.js')],
       ['disputeDesk', join(root, 'tests', 'disputeDesk.test.js')],
+      ['tribunal fixture', join(root, 'tests', 'tribunal.fixture.mjs')],
       ['triad (end to end)', join(root, 'test_triad.mjs')],
     ];
     const runOne = (file) => new Promise((resolve) => {

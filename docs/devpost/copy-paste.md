@@ -63,7 +63,7 @@ The demo opens on the story: TUESDAY, 3 AM — A $42 RENEWAL JUST FAILED.
 
 6. You can watch the claim get proven. The demo has a "Run the money-gate test suite" button.
    Press it and the suite runs on the machine, with its raw output printed into the page —
-   135 passed, 0 failed, including `denied → createOrder NOT called`.
+   156 passed, 0 failed, including `denied → createOrder NOT called`.
 ```
 
 ---
@@ -177,7 +177,7 @@ multi-agent, llm, sha-256, flux
 04_debate.png   — A $42 renewal against a $60 budget comes back CONDITIONAL: one for, one against, one judging, with a condition attached.
 05_timeline.png — One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral.
 06_ledger.png   — Every decision, every vote, every receipt in one AG Grid dashboard.
-07_proof.png   — Three claims, three tests, all runnable in the page: the money-gate suite returns 135 passed, 0 failed.
+07_proof.png   — Three claims, three tests, all runnable in the page: the whole suite returns 156 passed, 0 failed.
 08_grid.png    — The 4x4 verdict grid from the README, reproduced live: sixteen real adjudications.
 ```
 
