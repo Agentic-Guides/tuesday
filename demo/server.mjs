@@ -5,6 +5,7 @@
  * Run: node demo/server.mjs    → http://localhost:8787
  */
 import { createServer } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -57,6 +58,20 @@ const commerce = createTriadCommerce({ triad });
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+
+  // ★ A per-request trace id, on the response header only.
+  //
+  //   Added so that a failure can be tied to the request that caused it. Measured
+  //   without it: a 500 leaves nothing but a log line, and matching that line to the
+  //   request a user made is guesswork on timestamps. With it, the client keeps
+  //   `X-Trace-Id` from the failing response and one grep finds the whole request.
+  //
+  //   It is a HEADER, not something rendered on the page — the demo video, the HTML and
+  //   the browser view are unchanged by design, so no re-shoot is needed. Nothing reads
+  //   this header in the UI.
+  const traceId = randomUUID();
+  res.setHeader('X-Trace-Id', traceId);
+  res.traceId = traceId;
 
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
     const html = await readFile(join(__dir, 'index.html'), 'utf8');
@@ -791,7 +806,11 @@ function sampleDisputes() {
 }
 
 function json(res, code, obj) {
-  res.writeHead(code, { 'Content-Type': 'application/json' });
+  // Keep X-Trace-Id. writeHead() replaces the header set, so it is repeated here from
+  // the request id assigned at the server entry point.
+  const headers = { 'Content-Type': 'application/json' };
+  if (res.traceId) headers['X-Trace-Id'] = res.traceId;
+  res.writeHead(code, headers);
   res.end(JSON.stringify(obj));
 }
 

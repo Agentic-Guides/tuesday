@@ -82,3 +82,7 @@ eslint.config.mjs
 # local video tooling (recreate with: python -m venv devpost-video/.venv)
 devpost-video/.venv/
 devpost-video/_beats*/
+
+# local backups made while fixing
+*.bak*
+*.with_trace
