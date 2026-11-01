@@ -1,10 +1,13 @@
 {
- "01": "Three AI agents debate a failed $42 renewal. Money moves only on their consensus, and every decision is hashed into the payment itself.",
- "02": "Give the agents a category and a budget. Channel3 finds real products; the Tribunal judges each. Nothing is bought until two agree.",
- "03": "A $90 purchase against a $60 budget: the Auditor and Witness block it. The dissent map names who refused; the ledger keeps the proof.",
- "04": "A $42 renewal comes back CONDITIONAL. The agents only propose — PayPal hands a human the approval link, and money moves after that tap.",
- "05": "One bar per agent vote on the Bryntum timeline: green approved, red blocked, blue neutral. Open disputes stay flagged like a triage board.",
- "06": "Every decision, every vote, every receipt in one AG Grid dashboard. Each row carries the hash stamped into the PayPal order.",
- "07": "Three runnable claims in the page: the whole suite (156 passed, 0 failed), a live verdict grid, and a receipt re-hashed against PayPal.",
- "08": "The 4x4 verdict grid, reproduced live: sixteen adjudications computed on the button. Spend part of the month and every cell turns stricter."
+ "01_main.png": "Can the agent spend $42? The purchase, the monthly budget and what's already spent are the only inputs.",
+ "02_shop.png": "Five real products with photographs and prices, each judged by the Tribunal before a person picks one.",
+ "03_denied.png": "$500 against a $1 budget: the Auditor fails a named gate, the Witness refuses to bridge it, and no order exists.",
+ "03b_denied_nopaypal.png": "The same refusal with the settlement panel in frame: Order none. A DENIED verdict never reaches PayPal.",
+ "04_approved.png": "$42 of a $200 budget passes three votes to none, and a sandbox PayPal order is raised for a human to open.",
+ "05_debate.png": "Three models from three vendors, each writing its own argument and stating a confidence. The dissent is kept.",
+ "06_timeline.png": "One bar per agent vote on the Bryntum timeline: green approved, red blocked, blue neutral.",
+ "07_ledger.png": "Every decision, every vote, every receipt in one AG Grid ledger, with a Source column for demo versus live.",
+ "08_dispute.png": "The dispute desk reads nine numbered pieces of evidence, and an argument may only cite evidence that exists.",
+ "09_proof.png": "Three claims, three tests, all runnable in the page. The whole suite returns 156 passed, 0 failed, exit code 0.",
+ "10_grid.png": "The 4x4 verdict grid reproduced live: sixteen real adjudications, computed in front of you when you press the button."
 }

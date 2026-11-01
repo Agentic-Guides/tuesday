@@ -54,13 +54,20 @@ function seedLedger(ledger) {
   //   comments become wrong and must be re-measured (run the demo's
   //   "Show me all 16 cells" or `node _seed_check.mjs`).
   //
-  //   Measured (budget $110, spend accumulates row by row):
-  //     $18 USB-C cable        → APPROVED     (A=for B=for     W=neutral)
-  //     $9  Vitamin D3         → APPROVED     (A=for B=for     W=neutral)
-  //     $42 Skincare refill    → CONDITIONAL  (A=for B=against W=neutral +cond)  ← the failed renewal
-  //     $24 HDMI 2.1 cable     → CONDITIONAL  (A=for B=against W=neutral +cond)
-  //     $89 Portable SSD       → DENIED       (A=for B=against W=against)        ← refused outright
-  //     $12 USB-C adapter      → CONDITIONAL  (A=for B=against W=neutral +cond)
+  //   Re-measured 2026-11-01 against GET /api/ledger (the six rows this function
+  //   actually produced, not the values the previous comment claimed):
+  //     $18 USB-C cable        → APPROVED
+  //     $9  Vitamin D3         → APPROVED
+  //     $42 Skincare refill    → APPROVED
+  //     $24 HDMI 2.1 cable     → APPROVED
+  //     $89 Portable SSD       → DENIED     ← the one refusal in the seeded week
+  //     $12 USB-C adapter      → APPROVED
+  //
+  //   Four of these read CONDITIONAL in the old comment. They do not, and the
+  //   difference matters: the seeded week is the first thing a visitor sees, and a
+  //   comment that disagrees with the table on screen is how a reviewer stops
+  //   believing the rest of the file. The single DENIED row is the point — one
+  //   purchase in an ordinary week is refused outright, and the screen says why.
   const week = [
     // amount, category,                     minutesAgo  (spend accumulates as we go)
     [18,  'USB-C cable 2m',                 330],   // APPROVED    — ordinary restock

@@ -1,0 +1,32 @@
+01_main.png  (103)
+Can the agent spend $42? The purchase, the monthly budget and what's already spent are the only inputs.
+
+02_shop.png  (102)
+Five real products with photographs and prices, each judged by the Tribunal before a person picks one.
+
+03_denied.png  (112)
+$500 against a $1 budget: the Auditor fails a named gate, the Witness refuses to bridge it, and no order exists.
+
+03b_denied_nopaypal.png  (103)
+The same refusal with the settlement panel in frame: Order none. A DENIED verdict never reaches PayPal.
+
+04_approved.png  (106)
+$42 of a $200 budget passes three votes to none, and a sandbox PayPal order is raised for a human to open.
+
+05_debate.png  (109)
+Three models from three vendors, each writing its own argument and stating a confidence. The dissent is kept.
+
+06_timeline.png  (90)
+One bar per agent vote on the Bryntum timeline: green approved, red blocked, blue neutral.
+
+07_ledger.png  (107)
+Every decision, every vote, every receipt in one AG Grid ledger, with a Source column for demo versus live.
+
+08_dispute.png  (108)
+The dispute desk reads nine numbered pieces of evidence, and an argument may only cite evidence that exists.
+
+09_proof.png  (111)
+Three claims, three tests, all runnable in the page. The whole suite returns 156 passed, 0 failed, exit code 0.
+
+10_grid.png  (117)
+The 4x4 verdict grid reproduced live: sixteen real adjudications, computed in front of you when you press the button.

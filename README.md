@@ -170,22 +170,25 @@ has bought from this brand before. They return a verdict — **APPROVED**, **CON
 **DENIED** — and a reason per agent.
 
 Open **Direct Adjudication** to run a case of your own. Change the amount or the budget, press
-**Convene the Tribunal**, and watch the verdict move. Every cell below is measured from the running
-demo with `spentThisMonth = 0`, not estimated:
+**Convene the Tribunal**, and watch the verdict move.
 
-| Amount | Budget $30 | Budget $60 | Budget $150 | Budget $400 |
-|---|---|---|---|---|
-| **$9** | APPROVED | APPROVED | APPROVED | APPROVED |
-| **$18** | CONDITIONAL | APPROVED | APPROVED | APPROVED |
-| **$42** | DENIED | CONDITIONAL | APPROVED | APPROVED |
-| **$90** | DENIED | DENIED | CONDITIONAL | APPROVED |
+There is deliberately **no verdict table in this file.** The gate is deterministic, but the three
+votes above it are three live models, so a printed grid would be a snapshot that goes stale the
+first time a model phrases something differently — and a reader would have no way to tell which
+cells were measured and which were remembered. Press **Show me all 16 cells** in the demo instead:
+the grid is computed in front of you, sixteen real adjudications, and the receipt for each one names
+the gate that decided it.
 
-`spentThisMonth` matters, and the grid above holds it at zero on purpose. Already spending part of
-the month's budget moves every cell one step stricter — $9 against a $30 budget is APPROVED on a
-clean month and CONDITIONAL once $20 of it is gone.
+What is stable, and what a judge should expect:
 
-Press **Show me all 16 cells** in the demo and the grid is computed in front of you — sixteen real
-adjudications, not the table copied out of this file.
+- **A bigger purchase is judged more strictly, and a bigger budget buys more room.** Both axes move
+  the verdict in that direction.
+- **`spentThisMonth` tightens everything.** Already spending part of the month's budget moves a case
+  toward DENIED, because G2 (the remaining budget) and G3 (share of the month) both bite sooner.
+- **A $42 purchase against $60 is a split, not a pass.** On 2026-11-01 it came back DENIED on a $1
+  budget, and the point of the demo is that this refusal happens *before* PayPal is called.
+- **Two objections always lose.** The gate refuses anything with two votes against, no matter what
+  the third agent attached as a condition.
 
 ![The 4x4 verdict grid, reproduced live](docs/screenshots/08_grid.png)
 
@@ -209,8 +212,9 @@ into the PayPal payment's `custom_id`, so the receipt and the payment are the sa
 can re-verify a past decision without trusting the agents that made it.
 
 > **The one screen that proves it:** the candidate table. Five products, three different verdicts,
-> each with the gate that decided it. A tribunal that always says yes is a rubber stamp — this one
-> refuses $89 of a $60 budget and says which rule refused it. **Click any row to buy that one:**
+> each with the gate that decided it. A tribunal that always says yes is a rubber stamp — on a $60
+> budget this one refuses the $42 serum and the $39 one, passes the $24 refill, and says which rule
+> refused the rest. **Click any row to buy that one:**
 > Tuesday re-rules on the product you picked, at its real price, and only an APPROVED or
 > CONDITIONAL verdict raises the PayPal order. Pick a refused product and no order is created.
 
@@ -496,9 +500,19 @@ exactly what to fix. A verdict that cannot name its failing gate is an opinion, 
 Failing a gate is not the same as "do not buy" — `G5` means you are buying with no headroom,
 and the engine says so out loud instead of silently approving.
 
-Measured decision matrix (budget $200, spent $0). Every row below was re-measured against
-`adjudicate()` on 2026-10-24 — the verdicts, the vote split and the failing gates are engine output,
-not hand-written expectations:
+**How a gate failure and a vote failure differ — this is the part that is easy to misread.**
+
+The gates do not have a veto over the decision. They are the Auditor's evidence: a failed gate is
+what the Auditor *cites* when it argues against a purchase, and a model is free to argue FOR
+anyway. What decides the verdict is the votes, and what stops the money is
+`triadCreateOrder()` refusing to call PayPal on DENIED or DISSENT. So a $120 purchase against a
+$200 budget — 60% share, which fails G3 — still comes out APPROVED when all three agents vote for
+it. Measured on 2026-11-01: `$120 / $200 → APPROVED, 3 for 0 against, no failed gate reported on
+the Auditor's own argument because it did not object`. The gate is there to give an objection a
+name and a number, not to silently outvote the tribunal.
+
+The table below is what the engine returned on 2026-10-24, when the Auditor *did* object on those
+rows. Treat the vote split as the load-bearing column, and re-run the demo for today's numbers:
 
 | Purchase | Votes (A/B/W) | Decision | Failed gates |
 | --- | --- | --- | --- |

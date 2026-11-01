@@ -14,9 +14,9 @@ record itself.
 
 ## Inspiration
 
-A skincare brand gives its restock agent a **$200/month purchasing budget**. On a Tuesday
-at 3 AM the agent decides the Vitamin C serum is running low and wants to spend $42. Nobody
-is awake to approve it.
+A skincare brand gives its restock agent a **$200/month purchasing budget**. The Vitamin C
+serum is running low, so the agent wants to spend $42 of it. Nobody is watching the number
+when it decides.
 
 Give an agent a budget and it will eventually spend all of it. **The hard part is not letting
 it pay — it is giving it a defensible reason to stop.** The failure mode that costs real
@@ -29,7 +29,7 @@ the gate that can veto it, and the record of both.
 
 ## What it does
 
-The demo opens on the question: **TUESDAY, 3 PM — CAN THE AGENT SPEND $42?**
+The demo opens on the question: **CAN THE AGENT SPEND $42?**
 
 1. **Three agents take positions.** Advocate argues for the customer and the revenue.
    Auditor argues against spending money the budget does not have. Witness is neutral and
