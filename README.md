@@ -607,6 +607,13 @@ Disputes API is the programmatic one, with `list`, `get`, `provide-evidence`,
 `make-offer`, `accept-claim`, `escalate` and `appeal`. What neither provides is an
 answer to "which of these should we contest, on what evidence, and who decided".
 
+![The dispute desk — three roles, nine evidence items, and the gate that decides what may be answered](docs/screenshots/08_dispute.png)
+
+*The desk in session on a $42 non-receipt. The Merchant Advocate cites only evidence that is
+present, the Buyer Advocate's job is to name what is missing, and the Arbiter returns one of
+`CONTEST` / `OFFER_PARTIAL` / `REFUND` / `ACCEPT` / `ESCALATE`. Then the gate — not the model —
+decides whether that action may run without a human.*
+
 So the same tribunal that audits a purchase audits a dispute:
 
 | Role | What it does with a dispute |
