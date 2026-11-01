@@ -319,6 +319,22 @@ We would rather a judge trust us than be surprised.
 
 ## Try it out
 
-- **Code:** https://github.com/Agentic-Guides/tuesday
+**Hosted demo, nothing to install:** https://tuesday-paypal.onrender.com
+
+It runs on Render's free tier, which sleeps after 15 minutes idle, so the first load can take up
+to a minute while it wakes. Everything on the page works with no keys and no setup.
+
+**Or run it yourself, no keys needed:**
+
+```
+git clone https://github.com/Agentic-Guides/tuesday.git && cd tuesday
+npm start                     # → http://localhost:8787
+```
+
+With no keys the demo falls back to a deterministic engine, a mock PayPal client and a curated
+catalogue, so it always runs. With `OLLAMA_API_KEY` and PayPal sandbox credentials exported, the
+same code path uses three live models and the real Orders v2 sandbox. `npm test` runs the 156
+assertions either way.
+
+- **Code:** https://github.com/Agentic-Guides/tuesday (MIT)
 - **Video:** 2:51, 1080p — https://youtu.be/MfccT2qSvhM
-- **Run it:** `git clone`, then `node demo/server.mjs` → <http://localhost:8787>. No keys needed.
