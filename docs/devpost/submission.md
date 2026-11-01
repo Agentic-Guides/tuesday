@@ -317,5 +317,5 @@ We would rather a judge trust us than be surprised.
 ## Try it out
 
 - **Code:** https://github.com/Agentic-Guides/tuesday
-- **Video:** 2:50, 1080p — https://youtu.be/49eujv0VV0Y
+- **Video:** 2:51, 1080p — https://youtu.be/MfccT2qSvhM
 - **Run it:** `git clone`, then `node demo/server.mjs` → <http://localhost:8787>. No keys needed.
