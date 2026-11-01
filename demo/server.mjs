@@ -44,7 +44,9 @@ const __dir = dirname(fileURLToPath(import.meta.url));
     }
   } catch { /* no .env — MOCK is fine */ }
 }
-const triad = createTriad();
+// The demo must run with no credentials at all (a judge opens it cold), so the
+// offline engine is opted into here explicitly rather than inferred from a missing key.
+const triad = createTriad({ allowDeterministic: true });
 
 // Restore the receipts recorded in docs/fixtures so a real dispute's custom_id still
 // resolves against the ledger after a restart. Without this, E3 is only verifiable in the
@@ -916,5 +918,12 @@ server.on('error', (e) => {
 });
 server.listen(PORT, () => {
   console.log(`\n⚖️  Tuesday demo running → http://localhost:${PORT}`);
-  console.log(`   PayPal: ${triad._paypal.mode}  |  LLM: ${triad._runner.live ? 'live' : 'deterministic'}  |  Catalog: ${commerce._catalog.mode}\n`);
+  // Say WHY the tribunal is on the rule engine, not just that it is. "LLM:
+  // deterministic" alone reads as a broken integration; the reason (no key in .env)
+  // is the difference between "offline by design" and "misconfigured".
+  const llmLine = triad._runner.live
+    ? 'LLM: live'
+    : 'LLM: deterministic (no OLLAMA_API_KEY in .env — the rule engine is the '
+      + 'documented offline path, not a failure)';
+  console.log(`   PayPal: ${triad._paypal.mode}  |  ${llmLine}  |  Catalog: ${commerce._catalog.mode}\n`);
 });

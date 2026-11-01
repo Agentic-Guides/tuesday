@@ -52,9 +52,14 @@ export class TriadRunner {
     apiKey = process.env.OLLAMA_API_KEY || process.env.OPENAI_API_KEY,
     models = DEFAULT_MODELS,
     constraints = {},
+    allowDeterministic = process.env.ALLOW_DETERMINISTIC === '1',
   } = {}) {
     this.endpoint = endpoint;
     this.apiKey = apiKey;
+    // Opt-in switch for the deterministic engine, decided by the caller rather than
+    // inferred from a missing key (see debate()). Default OFF so a missing key is a
+    // loud error instead of a quiet downgrade.
+    this.allowDeterministic = Boolean(allowDeterministic);
     this.agents = {
       advocate: makeAgent(ROLES.ADVOCATE, models.advocate, constraints),
       auditor: makeAgent(ROLES.AUDITOR, models.auditor, constraints),
@@ -129,7 +134,23 @@ export class TriadRunner {
    */
   async debate(purchase) {
     if (!this.live) {
-      // Deterministic fallback — always works.
+      // Deterministic fallback — always works, but it must never be SILENT about
+      // why. A missing key used to fall through here without a word: `--llm` was
+      // passed, the run reported `engine: 'deterministic'`, and a genuine key
+      // problem read as a gate disagreement between the two paths. That mistake
+      // cost a full diagnostic session. Callers that legitimately want the
+      // deterministic engine (the judge-facing "Run the money-gate test suite"
+      // button, offline CI, the demo) must now say so with ALLOW_DETERMINISTIC=1
+      // or `{ allowDeterministic: true }`.
+      if (!this.allowDeterministic) {
+        throw new Error(
+          'LLM key missing: neither OLLAMA_API_KEY nor OPENAI_API_KEY is set, so '
+          + 'debate() would silently use the deterministic engine. Set a key, or '
+          + 'opt in explicitly with ALLOW_DETERMINISTIC=1 (or the '
+          + 'allowDeterministic constructor option) when the deterministic path is '
+          + 'what you actually want.',
+        );
+      }
       const advocate = deterministicReason(this.agents.advocate, purchase);
       const auditor = deterministicReason(this.agents.auditor, purchase);
       const witness = deterministicJudge(this.agents.witness, purchase, advocate, auditor);

@@ -20,6 +20,31 @@ const { cases } = JSON.parse(readFileSync(fixturePath, 'utf8'));
 
 const wantsLlm = process.argv.includes('--llm');
 
+// Load the project's own .env for --llm, the same way demo/server.mjs does, so
+// `node tests/tribunal.fixture.mjs --llm` works from a clean shell. Before this the
+// key had to be exported by hand; forgetting it made the run fall through to the
+// deterministic engine and report the result as a disagreement between the two paths.
+// Only the key the tribunal needs is read, and an existing env var always wins.
+if (wantsLlm) {
+  try {
+    const raw = readFileSync(join(here, '..', '.env'), 'utf8');
+    for (const line of raw.split(/\r?\n/)) {
+      const t = line.trim();
+      if (!t || t.startsWith('#')) continue;
+      const eq = t.indexOf('=');
+      if (eq < 1) continue;
+      const k = t.slice(0, eq).trim();
+      let v = t.slice(eq + 1).trim();
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+        v = v.slice(1, -1);
+      }
+      if (!(k in process.env) && (k === 'OLLAMA_API_KEY' || k === 'OPENAI_API_KEY' || k === 'LLM_ENDPOINT')) {
+        process.env[k] = v;
+      }
+    }
+  } catch { /* no .env — the missing-key error below will say so */ }
+}
+
 function deterministicRun(c) {
   const k = {
     monthlyBudget: c.monthlyBudget,
@@ -38,6 +63,11 @@ function deterministicRun(c) {
 async function llmRun(c) {
   const { createTriad } = await import('../src/webmcp.js');
   const triad = createTriad({
+    // --llm means "I intend to call the models". Without the key that intent cannot
+    // be honoured, so this throws instead of quietly measuring the deterministic
+    // engine and reporting the result as a model disagreement.
+    // Without --llm the deterministic path is the point, so opt in explicitly.
+    allowDeterministic: !wantsLlm,
     constraints: {
       monthlyBudget: c.monthlyBudget,
       spentThisMonth: c.spentThisMonth,

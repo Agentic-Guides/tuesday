@@ -58,7 +58,8 @@ function show(label, v) { console.log(`\n=== ${label} ===\n${JSON.stringify(v, n
 console.log('\n\n########## Test 4: Full flow with mock PayPal ##########');
 delete process.env.PAYPAL_CLIENT_ID;
 delete process.env.PAYPAL_CLIENT_SECRET;
-const triad = createTriad();
+// offline walkthrough: deterministic engine on purpose
+const triad = createTriad({ allowDeterministic: true });
 
 (async () => {
   // Approve a small purchase

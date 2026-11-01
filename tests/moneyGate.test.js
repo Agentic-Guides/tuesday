@@ -177,7 +177,8 @@ console.log('\n=== 3. Tamper detection ===');
 console.log('\n=== 4. Integration: real engine (no stub) ===');
 {
   const paypal = spyPayPal();
-  const triad = createTriad({ paypal }); // real deterministic engine
+  // deterministic engine on purpose: this suite asserts the gate, not the models
+  const triad = createTriad({ paypal, allowDeterministic: true });
 
   const ok = await triad.triadAdjudicate({ amount: 45, category: 'books', reason: 'study', monthlyBudget: 500, spentThisMonth: 50 });
   check('in-budget → APPROVED', ok.decision === DECISION.APPROVED, ok.decision);

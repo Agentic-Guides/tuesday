@@ -126,8 +126,11 @@ function seedLedger(ledger) {
   }
 }
 
-export function createTriad({ runner, paypal } = {}) {
-  const _runner = runner || new TriadRunner();
+export function createTriad({ runner, paypal, allowDeterministic } = {}) {
+  // allowDeterministic is forwarded so callers (the demo, the money-gate suite,
+  // test_triad) can opt into the offline engine deliberately. Anything that forgets
+  // to opt in gets a loud "LLM key missing" error instead of a silent downgrade.
+  const _runner = runner || new TriadRunner({ allowDeterministic });
   const _paypal = paypal || PayPalClient.fromEnv();
 
   const ledger = [];       // every adjudication
