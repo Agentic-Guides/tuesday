@@ -17,7 +17,7 @@
  */
 
 import { TriadRunner } from './runner.js';
-import { adjudicate, DECISION, buildDissentMap,
+import { adjudicate, DECISION,
          makeAgent, ROLES, deterministicReason, deterministicJudge } from './triad.js';
 import { PayPalClient } from '../paypal/client.js';
 import { buildReceipt, receiptCustomId, verifyReceipt, hashFromCustomId } from './receipt.js';
@@ -39,7 +39,6 @@ import { buildReceipt, receiptCustomId, verifyReceipt, hashFromCustomId } from '
  * of ordinary purchases — and one $42 renewal that failed at 3 AM on a Tuesday.
  */
 function seedLedger(ledger) {
-  const HOUR = 3600e3;
   // The timeline shows a rolling ±6h window around now, so the seeded week has to
   // fall inside it or the chart renders empty — a busy ledger behind a blank
   // timeline reads as a broken panel. Keep the rows recent and the story intact.

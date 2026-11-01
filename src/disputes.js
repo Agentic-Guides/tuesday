@@ -282,7 +282,6 @@ function stripUnsupportedCites(role, cites, items) {
 }
 
 export function deterministicDisputeReasoning(role, { reason, amount, items }) {
-  const have = items.filter((i) => i.ok);
   const haveIds = citeList(items);
   const required = requiredEvidenceFor(reason);
   const missing = required.filter((id) => !haveIds.includes(id));

@@ -322,6 +322,22 @@ async def set_field(cdp, element_id, text, per_char=0.11):
                      % (element_id, json.dumps(ch)))
         await asyncio.sleep(per_char)
     await asyncio.sleep(0.5)
+    # ★実測（2026-11-01）: 上の手順で入れたのに、画面には前の値が残ったまま録画された
+    #   （beat 06 は budget 200 / amount 42 を入れるはずが、画面も審理も budget 60 のまま
+    #    DENIED になり、台本の「Approved」と食い違った）。type="number" の input は
+    #   途中経過の値を捨てることがある。入れた値を読み返し、違えば確定値で上書きする。
+    got = await cdp.js("(()=>{const e=document.getElementById('%s');return e?String(e.value):null;})()" % element_id)
+    if str(got) != str(text):
+        print("    %s readback %r != %r -- forcing value" % (element_id, got, text), flush=True)
+        await cdp.js(
+            "(()=>{const e=document.getElementById('%s');if(!e)return;"
+            "e.value=%s;"
+            "e.dispatchEvent(new Event('input',{bubbles:true}));"
+            "e.dispatchEvent(new Event('change',{bubbles:true}));})()"
+            % (element_id, json.dumps(str(text))))
+        await asyncio.sleep(0.4)
+    final = await cdp.js("(()=>{const e=document.getElementById('%s');return e?String(e.value):null;})()" % element_id)
+    print("    %s = %r" % (element_id, final), flush=True)
 
 
 async def click(cdp, element_id):
@@ -354,16 +370,18 @@ async def click(cdp, element_id):
         print("    click(%s): not found" % element_id, flush=True)
         await cdp.js("(()=>{const b=document.getElementById('%s');if(b&&!b.disabled)b.click();})()" % element_id)
         return
-    # 座標が画面外なら、もう一度だけ中央寄せを試す
-    if pos["y"] < 20 or pos["y"] > 1010:
+    # ★実測（2026-11-01）: 以前は座標が 1010 を超えると JS の .click() に逃げていた。
+    #   ボスの Chrome ではその JS クリックが効かないことがあり、/api/shop が
+    #   一度も呼ばれないまま 70 秒待って rows=0 になった。座標クリックでしか押さない。
+    for _ in range(8):
+        if 60 <= pos["y"] <= 1010:
+            break
         await cdp.js("(()=>{const e=document.getElementById('%s');"
                      "if(e)e.scrollIntoView({block:'center',behavior:'instant'});})()" % element_id)
         await asyncio.sleep(0.4)
         pos = await cdp.center_of(element_id) or pos
-    if pos["y"] < 20 or pos["y"] > 1010:
-        print("    click(%s): out of view (y=%d), js fallback" % (element_id, pos["y"]), flush=True)
-        await cdp.js("(()=>{const b=document.getElementById('%s');if(b&&!b.disabled)b.click();})()" % element_id)
-        return
+    if not (60 <= pos["y"] <= 1010):
+        print("    click(%s): out of view (y=%d)" % (element_id, pos["y"]), flush=True)
     if False:
         # 見えない／存在しない場合は JS クリックにフォールバック
         print("    click(%s): not visible, js fallback" % element_id, flush=True)
@@ -704,6 +722,27 @@ async def record_take():
         await cdp.js("document.getElementById('category').value='skincare'")
         await cdp.js("document.getElementById('budget').value='200'")
         await scroll_top(cdp)
+        # ★実測（2026-11-01）: scroll_top() は window.scrollTo(0,0) するだけなので、
+        #   Shop のボタンは y=1463（画面外）に残る。click() は「画面外」と判定すると
+        #   JS の .click() にフォールバックするが、その JS クリックが効かず
+        #   /api/shop が一度も呼ばれないまま 70 秒待って rows=0 になった
+        #   （実際の録画ログ: "shop rows=0 imgs=0 / product images in frame: False"）。
+        #   ボタンが画面内に来るまで明示的に寄せてから押す。
+        for _ in range(12):
+            bp = await cdp.js(
+                "(()=>{const b=document.getElementById('shopBtn');if(!b)return null;"
+                "const r=b.getBoundingClientRect();"
+                "return {y:Math.round(r.top+r.height/2),vh:window.innerHeight};})()")
+            if bp and 80 <= bp["y"] <= bp["vh"] - 80:
+                break
+            await cdp.js("(()=>{const b=document.getElementById('shopBtn');"
+                         "if(b)b.scrollIntoView({block:'center',behavior:'instant'});})()")
+            await asyncio.sleep(0.35)
+        bp = await cdp.js(
+            "(()=>{const b=document.getElementById('shopBtn');if(!b)return null;"
+            "const r=b.getBoundingClientRect();"
+            "return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};})()")
+        print("    shopBtn at", bp, flush=True)
         await cdp.mouse_move(960, 300, steps=16, duration=0.6)
         await mark("03")
         await click(cdp, IDS["shop_run"])            # ← 商品を探すボタンを実クリック

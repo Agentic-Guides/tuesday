@@ -8,7 +8,7 @@
 
 import { createTriad } from './webmcp.js';
 import { Channel3 } from './channel3.js';
-import { adjudicate, DECISION } from './triad.js';
+import { DECISION } from './triad.js';
 
 export function createTriadCommerce({ triad, catalog } = {}) {
   const _triad = triad || createTriad();

@@ -99,6 +99,10 @@ export function receiptCustomId(receipt) {
  */
 export function verifyReceipt(receipt) {
   if (!receipt || typeof receipt.hash !== 'string') return false;
+  // ★`customId` is deliberately destructured OUT of the core: it holds the stamp that
+  // was written into PayPal's record, so it must not be part of the digest. If it were,
+  // the hash could never be recomputed after the order exists, and the round-trip check
+  // against PayPal's own record would fail on every real receipt.
   const { hash, customId, ...core } = receipt;
   return fingerprint(core) === hash;
 }

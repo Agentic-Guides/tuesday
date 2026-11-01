@@ -199,7 +199,7 @@ const server = createServer(async (req, res) => {
           recentPurchases: [],
         });
         return (r && (r.decision || (r.result && r.result.decision))) || 'UNKNOWN';
-      } catch (e) {
+      } catch {
         return 'ERROR';
       }
     };
@@ -646,7 +646,16 @@ function restoreFixtures(triad, fixturesDir) {
     if (!fs.existsSync(fixturesDir)) return restored;
     for (const f of fs.readdirSync(fixturesDir)) {
       if (!f.startsWith('real-chain-') || !f.endsWith('.json')) continue;
-      const doc = JSON.parse(fs.readFileSync(join(fixturesDir, f), 'utf8'));
+      // One malformed fixture must not cost the other one: this loop feeds the
+      // public ledger, and a truncated file used to abort the whole restore, so a
+      // judge would see an empty ledger with no explanation.
+      let doc;
+      try {
+        doc = JSON.parse(fs.readFileSync(join(fixturesDir, f), 'utf8'));
+      } catch (err) {
+        console.warn('[fixtures] skipped ' + f + ': ' + err.message);
+        continue;
+      }
       const ch = doc.chain || {};
       if (!ch.tribunal || !ch.order) continue;
       const hash = ch.tribunal.receipt_hash;
@@ -873,7 +882,6 @@ function rateLimited(req, bucketName) {
  *  stay live — a judge needs to see the real thing — but writes are dry-run unless
  *  ALLOW_LIVE_DISPUTE_WRITES=1 is set on the deployment, which the hosted demo is not.
  */
-function isRealDisputeForContest(id) { return !String(id).startsWith('SAMPLE-'); }
 
 function liveWritesAllowed() {
   return String(process.env.ALLOW_LIVE_DISPUTE_WRITES || '').trim() === '1';
@@ -896,7 +904,7 @@ async function readJson(req) {
   if (!chunks.length) return {};
   try {
     return JSON.parse(Buffer.concat(chunks).toString());
-  } catch (e) {
+  } catch {
     // A malformed body is the client's problem — answer 400, never throw out of
     // the request handler (an unhandled rejection ends the process on Node 15+).
     throw new BadRequest('malformed JSON body');
