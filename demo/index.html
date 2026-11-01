@@ -1598,7 +1598,18 @@ bindRun('run', { idle: '⚖️ Convene the Tribunal', busy: 'Agents deliberating
       </div>`:''}
       ${capHtml}
       <div class="map-row" style="color:var(--dim)">Money moves only after the human approves — agents propose, never settle.</div>`;
-  } else { pw.classList.add('hidden'); }
+  } else {
+    // A DENIED verdict leaving this panel blank reads as a rendering fault. The absence of
+    // a PayPal order IS the product, so say it in words: /api/order was never reached,
+    // because triadCreateOrder() returns before any network call when the gate refuses.
+    // Shown on the panel the reader is already looking at rather than a new one.
+    pw.classList.remove('hidden');
+    document.getElementById('paypal').innerHTML = `
+      <div class="map-row">Order: <b>none</b> · PayPal was not called</div>
+      <div class="map-row" style="color:var(--dim)">A ${r.decision} verdict never reaches
+        PayPal — the money gate refuses before any network call is made. The dissent map
+        above is what the human gets instead.</div>`;
+  }
 
   await refreshLedger();
 });

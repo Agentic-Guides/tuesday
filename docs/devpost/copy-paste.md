@@ -171,14 +171,17 @@ multi-agent, llm, sha-256, flux
 ## Image gallery captions
 
 ```
-01_main.png     — The demo opens on the story: a $42 renewal failed at 3 AM. Category, amount, monthly budget and why.
-02_shop.png     — Give the agents a category and a budget. Candidate products come back with real photographs; the Tribunal judges each one.
-03_denied.png   — A $90 charge against a $60 monthly budget. The Auditor and the Witness block it.
-04_debate.png   — A $42 renewal against a $60 budget comes back CONDITIONAL: one for, one against, one judging, with a condition attached.
-05_timeline.png — One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral.
-06_ledger.png   — Every decision, every vote, every receipt in one AG Grid dashboard.
-07_proof.png   — Three claims, three tests, all runnable in the page: the whole suite returns 156 passed, 0 failed.
-08_grid.png    — The 4x4 verdict grid from the README, reproduced live: sixteen real adjudications.
+01_main.png              — The demo opens on the question: can the agent spend $42? Category, amount, monthly budget and what has already been spent are the only inputs.
+02_shop.png              — Give the agents a category and a $200 budget and five real products come back with photographs, prices and a per-product verdict.
+03_denied.png            — A $500 purchase against a $1 budget. The Advocate argues for it, the Auditor fails it on a named gate, the Witness refuses to bridge a failed gate.
+03b_denied_nopaypal.png  — The same refusal with the settlement panel in frame: Order: none — PayPal was not called. A DENIED verdict returns before any network call.
+04_approved.png          — $42 against $200 comes back APPROVED, three for and none against, and a sandbox PayPal order is raised for a human to open.
+05_debate.png            — The debate itself: three models from three vendors, each with its own argument and a stated confidence, plus the dissent map.
+06_timeline.png          — One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral.
+07_ledger.png            — Every decision, every vote, every receipt in one AG Grid dashboard, with a Source column for demo vs live.
+08_dispute.png           — The dispute desk: nine numbered pieces of evidence, and an argument may only cite evidence that exists.
+09_proof.png             — Three claims, three tests, all runnable in the page: the whole suite returns 156 passed, 0 failed, exit code 0.
+10_grid.png              — The 4x4 verdict grid reproduced live: sixteen real adjudications, computed when the button is pressed.
 ```
 
 ---
@@ -187,7 +190,7 @@ multi-agent, llm, sha-256, flux
 
 ```
 Code:  https://github.com/Agentic-Guides/tuesday
-Video: <YouTube link — added at submission time>
+Video: https://youtu.be/MfccT2qSvhM
 Run:   git clone https://github.com/Agentic-Guides/tuesday.git && cd triad && node demo/server.mjs
        → http://localhost:8787   (no API keys needed)
 ```

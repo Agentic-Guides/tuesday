@@ -306,13 +306,16 @@ We would rather a judge trust us than be surprised.
 | # | File | Caption |
 |---|---|---|
 | 1 | `01_main.png` | The demo opens on the question: can the agent spend $42? Category, amount, monthly budget and what has already been spent are the only inputs. |
-| 2 | `02_shop.png` | Give the agents a category and a budget. Candidate products come back with real photographs; the Tribunal judges every one of them. |
-| 3 | `03_denied.png` | A $90 charge against a $60 monthly budget. The Auditor and the Witness block it, and the dissent map names who disagreed and on which gate. |
-| 4 | `04_debate.png` | A $42 purchase against a $60 budget comes back CONDITIONAL: one for, one against, one judging — and the Witness attaches a condition. The agents only ever propose. |
-| 5 | `05_timeline.png` | One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral. Open disputes stay flagged. |
-| 6 | `06_ledger.png` | Every decision, every vote, every receipt in one AG Grid dashboard. Each row carries the hash stamped into the PayPal order's `custom_id`. |
-| 7 | `07_proof.png` | Three claims, three tests, all runnable in the page: the whole suite (156 passed, 0 failed), the 4x4 verdict grid computed live, and a receipt re-hashed against the hash stored in the PayPal order's `custom_id`. |
-| 8 | `08_grid.png` | The 4×4 verdict grid from the README, reproduced live: sixteen real adjudications, computed when the button is pressed. Charge down the side, budget across the top. |
+| 2 | `02_shop.png` | Give the agents a category and a budget of $200 and five real products come back with photographs, prices and a per-product verdict. The Tribunal judges every one, and a person then picks which one to settle. |
+| 3 | `03_denied.png` | A $500 purchase against a $1 budget. The Advocate argues for it, the Auditor fails it on a named gate, and the Witness refuses to bridge a failed gate. The dissent map names who disagreed and why. |
+| 4 | `03b_denied_nopaypal.png` | The same refusal, with the settlement panel in frame: Order: none — PayPal was not called. A DENIED verdict returns before any network call, so no order can exist to cancel. |
+| 5 | `04_approved.png` | $42 against $200 comes back APPROVED, three votes for and none against. A sandbox PayPal order is raised and the page says a human must open the approval link — the agents only ever propose. |
+| 6 | `05_debate.png` | The debate itself: three models from three vendors, each with its own argument and a stated confidence, plus the dissent map that travels into the receipt. |
+| 7 | `06_timeline.png` | One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral. Decisions still open stay flagged. |
+| 8 | `07_ledger.png` | Every decision, every vote, every receipt in one AG Grid dashboard, with a Source column that says which rows moved real money and which did not. Each live row carries the hash stamped into the PayPal order's `custom_id`. |
+| 9 | `08_dispute.png` | The dispute desk: the same tribunal reads nine numbered pieces of evidence and the gate decides what may be answered. An argument may only cite evidence that exists. |
+| 10 | `09_proof.png` | Three claims, three tests, all runnable in the page. Running the whole suite from the button returns 156 passed, 0 failed, exit code 0. |
+| 11 | `10_grid.png` | The 4×4 verdict grid reproduced live: sixteen real adjudications, computed when the button is pressed. Charge down the side, budget across the top. |
 
 ## Try it out
 

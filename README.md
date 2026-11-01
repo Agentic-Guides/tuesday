@@ -81,13 +81,19 @@ Each argues in its own words, states a confidence, and votes. **Disagreement is 
 
 | Conditional — the Tribunal splits | Blocked by dissent — 1 for · 2 against |
 |---|---|
-| ![CONDITIONAL — the Tribunal splits, and the dissent is kept](docs/screenshots/04_debate.png) | ![DENIED — the Auditor and Witness block an over-budget charge](docs/screenshots/03_denied.png) |
+| ![The Tribunal in session — three arguments and the dissent map](docs/screenshots/04_debate.png) | ![DENIED — the Auditor and Witness block an over-budget charge](docs/screenshots/03_denied.png) |
 
-*Left: a $42 purchase against a $60 budget comes back CONDITIONAL — one vote for, one against, one
-judging, and the Witness attaches a condition. CONDITIONAL still raises the PayPal order; what changes
-is that the condition travels with it in the receipt, so the human approving the payment sees exactly
-what has to hold. Right: a $90 charge against that same $60 budget: the Auditor and Witness block it
-outright, the dissent map shows who disagreed, and no order is created at all.*
+*Left: the debate itself — three models from three vendors, each writing its own argument and stating
+a confidence, with the dissent map kept so the reason travels with the payment. Right: a $500 charge
+against a $1 budget. The Advocate argues for it, the Auditor fails it on a named gate, and the Witness
+refuses to bridge a failed gate: the verdict is DENIED, and no PayPal order is created at all.*
+
+| ![APPROVED — $42 of a $200 budget, three votes for](docs/screenshots/04_approved.png) | ![Order: none — PayPal was not called](docs/screenshots/03b_denied_nopaypal.png) |
+|---|---|
+
+*Left: $42 against a $200 budget passes with three votes for and none against, and a sandbox PayPal
+order is raised for a human to open. Right: the same refusal as above, with the settlement panel in
+frame — Order: none, PayPal was not called, because a DENIED verdict returns before any network call.*
 
 ### The governance dashboard — every decision, every vote, every hash
 
