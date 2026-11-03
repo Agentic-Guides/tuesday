@@ -13,6 +13,8 @@ We wanted to know what it looks like when the decision is not "can this be paid"
 *should it be, and by whose authority*. So we built the part everybody skips: the argument,
 the gate that can veto it, and the record of both.
 
+**Live demo:** https://tuesday-paypal.onrender.com — runs on a free tier, so the first load can take up to a minute. Everything works with no keys and no setup.
+
 ## What it does
 
 The demo opens on the question: **CAN THE AGENT SPEND $42?**
@@ -37,6 +39,8 @@ The demo opens on the question: **CAN THE AGENT SPEND $42?**
    button. Press it and `tests/moneyGate.test.js` runs on the machine, with its raw output
    printed into the page — 156 passed, 0 failed, including
    `denied → createOrder NOT called`. A DENIED verdict never reaches PayPal at all.
+
+Tuesday also audits what happens *after* the money moves — see **"After the money moves: the dispute desk"** below.
 
 ## How we built it
 
@@ -297,10 +301,15 @@ money. We had written a document describing a veto the code did not implement. T
 documentation describe the mechanism that exists — no PayPal order is created unless the gates pass —
 instead of the mechanism that sounded better.
 
-**3. A ledger that changed its own hash on every click.** The receipt hash covered a field that differs
-between an order and its PayPal-side echo, so a real round-trip verification failed on every genuine
-receipt. Excluding that field made the hash reproducible, and reproducibility is the entire point of
-putting a hash in `custom_id` in the first place.
+**3. A ledger that changed its own hash.** The receipt hash covered a field that differs
+between an order and its PayPal-side echo, so a real round-trip verification failed on every
+genuine receipt. Excluding that field made the hash reproducible, and reproducibility is the
+entire point of putting a hash in `custom_id` in the first place.
+
+**4. Evidence that agreed with itself.** On the dispute desk, `E3` used to report "matches our
+ledger" whenever a stamp merely existed; it now recomputes the ledger entry's full SHA-256 and
+compares its first 16 characters with the stamped ones. And `E6` had two states where the world
+has three: an address that was never compared is not a mismatch.
 
 **The unglamorous one:** the hosted demo sleeps. A free Render instance after 15 minutes idle takes up to
 a minute to answer its first request. Every screenshot in the gallery was taken against a warm instance
@@ -376,22 +385,6 @@ each tool actually does in Tuesday — not merely that it is a dependency:
 `javascript` `multi-agent` `llm` `sha-256` `flux`
 
 ---
-
-## Image gallery captions
-
-| # | File | Caption |
-|---|---|---|
-| 1 | `01_main.png` | The demo opens on the question: can the agent spend $42? Category, amount, monthly budget and what has already been spent are the only inputs. |
-| 2 | `02_shop.png` | Give the agents a category and a budget of $200 and five real products come back with photographs, prices and a per-product verdict. The Tribunal judges every one, and a person then picks which one to settle. |
-| 3 | `03_denied.png` | A $500 purchase against a $1 budget. The Advocate argues for it, the Auditor fails it on a named gate, and the Witness refuses to bridge a failed gate. The dissent map names who disagreed and why. |
-| 4 | `03b_denied_nopaypal.png` | The same refusal, with the settlement panel in frame: Order: none — PayPal was not called. A DENIED verdict returns before any network call, so no order can exist to cancel. |
-| 5 | `04_approved.png` | $42 against $200 comes back APPROVED, three votes for and none against. A sandbox PayPal order is raised and the page says a human must open the approval link — the agents only ever propose. |
-| 6 | `05_debate.png` | The debate itself: three models from three vendors, each with its own argument and a stated confidence, plus the dissent map that travels into the receipt. |
-| 7 | `06_timeline.png` | One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral. Decisions still open stay flagged. |
-| 8 | `07_ledger.png` | Every decision, every vote, every receipt in one AG Grid dashboard, with a Source column that says which rows moved real money and which did not. Each live row carries the hash stamped into the PayPal order's `custom_id`. |
-| 9 | `08_dispute.png` | The dispute desk: the same tribunal reads nine numbered pieces of evidence and the gate decides what may be answered. An argument may only cite evidence that exists. |
-| 10 | `09_proof.png` | Three claims, three tests, all runnable in the page. Running the whole suite from the button returns 156 passed, 0 failed, exit code 0. |
-| 11 | `10_grid.png` | The 4×4 verdict grid reproduced live: sixteen real adjudications, computed when the button is pressed. Charge down the side, budget across the top. |
 
 ## Try it out
 
