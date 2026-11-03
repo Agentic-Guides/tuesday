@@ -1820,6 +1820,61 @@ refreshLedger();
 refreshMode();
 </script>
 
+  <!-- P1-1: the standard three sections. A judge who scans for them should not have to
+       go to the repository to find out what was hard, what we learned, and what is next. -->
+  <section id="challenges" style="margin-top:32px;padding-top:16px;border-top:1px solid #ddd8cc">
+    <h2 style="font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:#6b6b74;margin-bottom:10px">Challenges</h2>
+    <p style="font-size:13px;line-height:1.7;color:#3b3b44;margin:0 0 10px">
+      <b>Three models that disagree about what "disagree" means.</b> The first version compared verdict
+      strings and got <code>approve</code>, <code>APPROVE</code> and <i>Approved — but see note 2</i>. The
+      decision rule had to be defined before the models were asked anything: a fixed enum, a fixed schema,
+      and a rejection of anything that does not validate.
+    </p>
+    <p style="font-size:13px;line-height:1.7;color:#3b3b44;margin:0 0 10px">
+      <b>A gate that had no veto.</b> The first design let the Auditor block a purchase. It read well and it
+      was false — <code>votesFor</code> / <code>votesAgainst</code> decide, and <code>triadCreateOrder()</code>
+      is what stops the money. The documentation now describes the mechanism that exists.
+    </p>
+    <p style="font-size:13px;line-height:1.7;color:#3b3b44;margin:0 0 10px">
+      <b>A ledger that changed its own hash.</b> The receipt hash covered a field that differs between an
+      order and its PayPal-side echo, so a real round-trip check failed on every genuine receipt. Excluding
+      that field made the hash reproducible — which is the whole point of putting it in <code>custom_id</code>.
+    </p>
+  </section>
+
+  <section id="learned" style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd8cc">
+    <h2 style="font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:#6b6b74;margin-bottom:10px">What we learned</h2>
+    <p style="font-size:13px;line-height:1.7;color:#3b3b44;margin:0 0 10px">
+      <b>The disagreement is the product, not the consensus.</b> "3 agents agreed" tells you almost nothing;
+      three copies of the same prompt agree with themselves. What a merchant needs is <i>which</i> agent
+      objected and on what named ground — the only part a human can overrule with a reason.
+    </p>
+    <p style="font-size:13px;line-height:1.7;color:#3b3b44;margin:0 0 10px">
+      <b>A rule written in prose is not a rule.</b> Our documentation drifted from our code twice in one week,
+      and both times it was caught by reading the running system rather than the document. If a guarantee
+      matters it has to be mechanical and it has to fail a test when removed.
+    </p>
+    <p style="font-size:13px;line-height:1.7;color:#3b3b44;margin:0">
+      <b>A free tier is a design constraint.</b> The demo has to be worth waiting sixty seconds for, which
+      changed what sits above the fold.
+    </p>
+  </section>
+
+  <section id="next" style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd8cc">
+    <h2 style="font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:#6b6b74;margin-bottom:10px">What's next</h2>
+    <p style="font-size:13px;line-height:1.7;color:#3b3b44;margin:0 0 10px">
+      <b>Subscriptions v1 and the PayPal Agent Toolkit</b> — a renewal gated by the same three-agent review,
+      which is what a merchant with recurring revenue actually needs.
+    </p>
+    <p style="font-size:13px;line-height:1.7;color:#3b3b44;margin:0 0 10px">
+      <b>Payouts, not only purchases</b> — the same pattern with the sign flipped.
+    </p>
+    <p style="font-size:13px;line-height:1.7;color:#3b3b44;margin:0">
+      <b>What we will not add:</b> a fourth agent to break a 2–1 tie. A tie is information; more of the same
+      voice would produce a cleaner dashboard and a worse decision.
+    </p>
+  </section>
+
   <!-- P2-6: sponsor-prize judges sometimes read only this page. The same list the
        repository carries, in the same order, with what each tool actually does here. -->
   <footer id="sponsorTools" style="margin-top:36px;padding-top:16px;border-top:1px solid #ddd8cc;font-size:12.5px;color:#6b6b74;line-height:1.75">

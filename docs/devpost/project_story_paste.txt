@@ -356,6 +356,20 @@ silently become a consensus:
 The debate is not decoration: the three verdicts are what `votesFor` / `votesAgainst` count. With no API key
 present the same code path falls back to a deterministic engine, and the page says so in its mode bar.
 
+## Sponsor tools used
+
+Sponsor-prize judges sometimes read only one section. This is the full list, in one place, with what
+each tool actually does in Tuesday — not merely that it is a dependency:
+
+- **PayPal** — Orders v2 REST. The decision hash is stamped into the order's `custom_id`, so the reason a
+  payment was allowed is readable from the payment record itself. Nothing is captured unless a human
+  finishes the payment in PayPal.
+- **AG Grid** — the decision ledger and the candidate catalogue: every adjudication, every vote, every
+  receipt hash, with a Source column that says which rows moved real money.
+- **Bryntum Scheduler** — the audit timeline: one bar per agent vote, and which decisions are still open.
+- **Channel3** — product discovery, so the debate is about a real, purchasable SKU rather than a mock.
+- **Render** — hosting for the hosted demo (free instance: sleeps after 15 minutes idle).
+
 ## Built with
 
 `paypal` `paypal-orders-v2` `ag-grid` `bryntum-scheduler` `channel3` `webmcp` `nodejs`
