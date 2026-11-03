@@ -838,6 +838,71 @@ The pattern generalises to *any* high-stakes agent action: purchases, refunds, p
 changes. **Named gates + adversarial review + surfaced dissent + a human final call + a verifiable
 record** is what makes autonomous money trustworthy.
 
+## Challenges
+
+Three things genuinely blocked us, and none of them were the interesting part.
+
+**1. Three LLMs that disagree about what "disagree" means.** The first version asked each model for a
+verdict and compared the strings. They returned `approve`, `APPROVE`, `Approved — but see note 2`, and a
+fourth variant that was a paragraph of reasoning containing the word approve. The decision rule had to be
+defined before the models could be asked anything: a fixed enum, a fixed schema, a rejection of anything
+that did not validate. The moment we validated the shape instead of trusting the prose, the "disagreement"
+became real disagreement rather than formatting noise.
+
+**2. The gate that had no veto.** The original design let the auditor agent block a purchase. It read
+well and it was wrong: `votesFor` and `votesAgainst` decide, and `triadCreateOrder()` is what actually
+stops the money. We had written a document that described a veto the code did not implement. The fix was
+to make the README describe the mechanism that exists — the order is never created unless the gates pass —
+instead of the mechanism that sounded better.
+
+**3. A ledger that changed its own hash on every click.** The receipt hash covered a field that differs
+between an order and its PayPal-side echo, so a real round-trip verification failed on every genuine
+receipt. Excluding that field made the hash reproducible, and reproducibility is the entire point of
+putting a hash in `custom_id` in the first place.
+
+**The unglamorous one:** the hosted demo sleeps. A free Render instance after 15 minutes idle takes up to
+a minute to answer its first request. Every screenshot in this repository was taken against a warm
+instance because a cold one produces a blank page, not an error. If you open the demo and it hangs, it is
+waking, not broken.
+
+## What we learned
+
+**The disagreement is the product, not the consensus.** A system that reports "3 agents agreed" tells you
+almost nothing — three copies of the same prompt agree with themselves. What a merchant actually needs to
+see is *which* agent objected and *on what named ground*, because that is the only part a human can
+overrule with a reason.
+
+**A rule written in prose is not a rule.** Our own documentation drifted from our own code twice in one
+week — the 4×4 budget table and the claim that the gate had a veto. Both were caught by reading the
+running system instead of the document. If a guarantee matters, it has to be mechanical (a function that
+refuses to create the order) and it has to be measurable (a test that fails when the guarantee is removed).
+
+**Making the reason verifiable costs less than making the reason sound convincing.** Putting the decision
+hash into the PayPal order's `custom_id` took less work than any of the copy we wrote to explain the
+product, and it is the only claim in this submission that a sceptic can check without trusting us.
+
+**A free tier is a design constraint, not a deployment detail.** The demo has to be worth waiting 60
+seconds for. That changed what we put above the fold: a working "Prove it yourself" panel first, the
+narrative second.
+
+## What's next
+
+**Subscriptions v1 and the PayPal Agent Toolkit.** Today the integration is Orders v2 with the decision
+hash in `custom_id`. The production shape is a subscription whose renewal is gated by the same three-agent
+review — which is what a merchant with recurring revenue actually needs, and the reason this was built
+against PayPal rather than a generic payment rail.
+
+**A real dispute desk on the merchant's side.** The dispute path exists and is gated, but it currently
+ends with a human decision and a receipt. The next step is feeding that receipt back into the next
+adjudication, so an agent that was overruled once argues differently the next time.
+
+**Payouts, not only purchases.** The pattern — named gates, adversarial review, surfaced dissent, human
+final call, verifiable record — is indifferent to the direction money moves. Refunds and payouts are the
+same problem with the sign flipped.
+
+**What we will not add:** a fourth agent to break a 2–1 tie. A tie is information. Resolving it with more
+of the same voice would produce a cleaner dashboard and a worse decision.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

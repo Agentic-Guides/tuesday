@@ -279,3 +279,48 @@ We would rather a judge trust us than be surprised.
 - **Not implemented:** Subscriptions v1 and the PayPal Agent Toolkit (`@paypal/mcp`). The
   settlement path here is Orders v2 REST. The Agent Toolkit is the integration point this
   design moves to in production — we say so in the README rather than implying it ships.
+
+## Built with
+
+`paypal` `paypal-orders-v2` `ag-grid` `bryntum-scheduler` `channel3` `webmcp` `nodejs`
+`javascript` `multi-agent` `llm` `sha-256` `flux`
+
+---
+
+## Image gallery captions
+
+| # | File | Caption |
+|---|---|---|
+| 1 | `01_main.png` | The demo opens on the question: can the agent spend $42? Category, amount, monthly budget and what has already been spent are the only inputs. |
+| 2 | `02_shop.png` | Give the agents a category and a budget of $200 and five real products come back with photographs, prices and a per-product verdict. The Tribunal judges every one, and a person then picks which one to settle. |
+| 3 | `03_denied.png` | A $500 purchase against a $1 budget. The Advocate argues for it, the Auditor fails it on a named gate, and the Witness refuses to bridge a failed gate. The dissent map names who disagreed and why. |
+| 4 | `03b_denied_nopaypal.png` | The same refusal, with the settlement panel in frame: Order: none — PayPal was not called. A DENIED verdict returns before any network call, so no order can exist to cancel. |
+| 5 | `04_approved.png` | $42 against $200 comes back APPROVED, three votes for and none against. A sandbox PayPal order is raised and the page says a human must open the approval link — the agents only ever propose. |
+| 6 | `05_debate.png` | The debate itself: three models from three vendors, each with its own argument and a stated confidence, plus the dissent map that travels into the receipt. |
+| 7 | `06_timeline.png` | One bar per agent vote on the Bryntum timeline — green approved, red blocked, blue neutral. Decisions still open stay flagged. |
+| 8 | `07_ledger.png` | Every decision, every vote, every receipt in one AG Grid dashboard, with a Source column that says which rows moved real money and which did not. Each live row carries the hash stamped into the PayPal order's `custom_id`. |
+| 9 | `08_dispute.png` | The dispute desk: the same tribunal reads nine numbered pieces of evidence and the gate decides what may be answered. An argument may only cite evidence that exists. |
+| 10 | `09_proof.png` | Three claims, three tests, all runnable in the page. Running the whole suite from the button returns 156 passed, 0 failed, exit code 0. |
+| 11 | `10_grid.png` | The 4×4 verdict grid reproduced live: sixteen real adjudications, computed when the button is pressed. Charge down the side, budget across the top. |
+
+## Try it out
+
+**Hosted demo, nothing to install:** https://tuesday-paypal.onrender.com
+
+It runs on Render's free tier, which sleeps after 15 minutes idle, so the first load can take up
+to a minute while it wakes. Everything on the page works with no keys and no setup.
+
+**Or run it yourself, no keys needed:**
+
+```
+git clone https://github.com/Agentic-Guides/tuesday.git && cd tuesday
+npm start                     # → http://localhost:8787
+```
+
+With no keys the demo falls back to a deterministic engine, a mock PayPal client and a curated
+catalogue, so it always runs. With `OLLAMA_API_KEY` and PayPal sandbox credentials exported, the
+same code path uses three live models and the real Orders v2 sandbox. `npm test` runs the 156
+assertions either way.
+
+- **Code:** https://github.com/Agentic-Guides/tuesday (MIT)
+- **Video:** 2:51, 1080p — https://youtu.be/MfccT2qSvhM
