@@ -86,7 +86,14 @@ export function anchorAddress() {
 }
 
 /**
- * Anchor a receipt hash. Returns { status, txHash?, chainId?, from?, reason? }.
+ * Anchor a SINGLE receipt hash. Returns { status, txHash?, chainId?, from?, reason? }.
+ *
+ * PREFER anchor_batch.js IN PRODUCTION.
+ * One transaction per receipt publishes the business's activity volume: anyone reading the
+ * anchor address can count adjudications per day. A daily Merkle root (anchor_batch.js) keeps
+ * per-receipt verifiability while removing the count. This single-receipt path stays because it
+ * is the smallest thing that proves the mechanism end to end on a testnet, and because a batch
+ * of one is a legitimate case.
  * status is one of: "anchored" | "already_anchored" | "not_configured" | "failed"
  * This function never throws — a failed anchor must not break the payment path.
  */
