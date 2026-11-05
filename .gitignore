@@ -89,3 +89,6 @@ devpost-video/_beats*/
 semgrep.json
 semgrep2.json
 sg_final.json
+
+# Runtime ledger — receipts are evidence held locally, not published per-commit
+data/

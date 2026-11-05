@@ -13,6 +13,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { createTriad } from '../src/webmcp.js';
 import { createTriadCommerce } from '../src/commerce.js';
 import { hashFromCustomId } from '../src/receipt.js';
+import { appendReceipt, DEFAULT_LEDGER_PATH } from '../src/ledger_store.js';
 import { collectEvidence, deterministicDisputeReasoning, finaliseDispute,
          DISPUTE_ACTION } from '../src/disputes.js';
 
@@ -110,7 +111,21 @@ const server = createServer(async (req, res) => {
     try {
       const body = await readJson(req);
       const result = await triad.triadAdjudicate(body);
-      return json(res, 200, result);
+      // A receipt that only lives in this process is not evidence. Persist the core the moment
+      // the decision exists, so the daily anchor batch has something real to anchor tomorrow.
+      // A ledger failure must not fail the adjudication — but it must be visible in the response,
+      // because a silently unpersisted receipt is exactly the failure this ledger exists to prevent.
+      let ledger = null;
+      try {
+        if (result?.receipt) {
+          const saved = appendReceipt(result.receipt, DEFAULT_LEDGER_PATH);
+          ledger = { id: saved.id, seq: saved.seq, persisted: true };
+        }
+      } catch (e) {
+        ledger = { persisted: false, error: e && e.message ? e.message : String(e) };
+        console.error('[ledger] append failed:', ledger.error);
+      }
+      return json(res, 200, ledger ? { ...result, ledger } : result);
     } catch (e) {
       if (e instanceof BadRequest) return json(res, 400, { error: e.message });
       // Do not echo internals to the client; log locally instead.
