@@ -1,0 +1,160 @@
+{
+ "_what": "An anchor batch: the receipt cores, the expected values, and the transaction that carries them.",
+ "_how_to_recompute": [
+  "full = SHA-256(canonicalize(core))  — canonicalize: keys sorted recursively",
+  "leaf = SHA-256('tuesday:leaf:' + full)",
+  "parent(a,b) = SHA-256(bytes(min(a,b) + max(a,b)))",
+  "odd node at a level is promoted unchanged",
+  "root = walk up to the single remaining node"
+ ],
+ "day": "2026-11-06",
+ "txHash": "0x1b87f30e93d6ea9e563cba820b142917d3abc5181374b1ec7db5cb64f8b1ade9",
+ "block": 52087930,
+ "chainId": 80002,
+ "from": "0x1035D7347242Ee0977b3b76Ac89c4B176845a560",
+ "root": "05584d86626bb04428ad5ecfa8e2a693903a82c4e10e369f036bef0bf461bcc1",
+ "onChainPayload": "0x747565736461793a62617463683a05584d86626bb04428ad5ecfa8e2a693903a82c4e10e369f036bef0bf461bcc1",
+ "receipts": [
+  {
+   "id": "rcpt_000004",
+   "at": "2026-11-05T19:59:23.524Z",
+   "fp16": "3b08ccd8fb3eac7c",
+   "core": {
+    "v": 1,
+    "purchaseId": "pur_mw3yyhtl_c5j1",
+    "amount": 39,
+    "category": "skincare",
+    "decision": "DENIED",
+    "threshold": 2,
+    "votes": {
+     "advocate": "for",
+     "auditor": "against",
+     "witness": "against"
+    },
+    "models": {
+     "advocate": "deepseek-v4.1-flash",
+     "auditor": "gemma4:31b",
+     "witness": "gpt-oss:120b"
+    },
+    "reasoning": {
+     "advocate": "bfaea43b55afd32e",
+     "auditor": "d26e8003beff25d8",
+     "witness": "49cf5214e2dda930"
+    },
+    "engine": "llm",
+    "at": "2026-11-05T19:59:23.524Z"
+   }
+  },
+  {
+   "id": "rcpt_000005",
+   "at": "2026-11-05T20:28:48.108Z",
+   "fp16": "9940fbbe0476dd68",
+   "core": {
+    "v": 1,
+    "purchaseId": "pur_mw400b0w_ihkq",
+    "amount": 42,
+    "category": "skincare",
+    "decision": "DENIED",
+    "threshold": 2,
+    "votes": {
+     "advocate": "for",
+     "auditor": "against",
+     "witness": "against"
+    },
+    "models": {
+     "advocate": "deepseek-v4.1-flash",
+     "auditor": "gemma4:31b",
+     "witness": "gpt-oss:120b"
+    },
+    "reasoning": {
+     "advocate": "fd143df1c7381b96",
+     "auditor": "5e44b4b285f87441",
+     "witness": "070b3d843e0353a1"
+    },
+    "engine": "llm",
+    "at": "2026-11-05T20:28:48.108Z"
+   }
+  },
+  {
+   "id": "rcpt_000006",
+   "at": "2026-11-05T20:28:52.498Z",
+   "fp16": "47b4b67ad4bc5859",
+   "core": {
+    "v": 1,
+    "purchaseId": "pur_mw400ebb_1r67",
+    "amount": 89,
+    "category": "skincare",
+    "decision": "DENIED",
+    "threshold": 2,
+    "votes": {
+     "advocate": "for",
+     "auditor": "against",
+     "witness": "against"
+    },
+    "models": {
+     "advocate": "deepseek-v4.1-flash",
+     "auditor": "gemma4:31b",
+     "witness": "gpt-oss:120b"
+    },
+    "reasoning": {
+     "advocate": "c77a338abfa87d3d",
+     "auditor": "fd11f0efae5af93f",
+     "witness": "39a8b816188ea4a4"
+    },
+    "engine": "llm",
+    "at": "2026-11-05T20:28:52.498Z"
+   }
+  }
+ ],
+ "expected_full_sha256": [
+  "3b08ccd8fb3eac7ca4d5eac6aadeb447673e0504de45ed443ea4b5f9c769adf8",
+  "9940fbbe0476dd68c79d7b1692df49e3f714cad1e89964228e470c1a074528d4",
+  "47b4b67ad4bc5859c57cdb8e07bea270ad46bd7468d5f4bba949329509eb238c"
+ ],
+ "expected_leaves": [
+  "be1aa8b050d46d33f473a6f96ed304cdb44088977dde2859f02593880a2caa24",
+  "84b1664a371ec082a2373f45a0181543e863d494f3431f1b2e50ea011ba73541",
+  "496d1c186d1870baff0f8fc8de88208a2e90411dda3f0755fa21f8942e194efc"
+ ],
+ "proofs": [
+  {
+   "id": "rcpt_000004",
+   "leaf": "be1aa8b050d46d33f473a6f96ed304cdb44088977dde2859f02593880a2caa24",
+   "proof": [
+    {
+     "hash": "84b1664a371ec082a2373f45a0181543e863d494f3431f1b2e50ea011ba73541",
+     "right": true
+    },
+    {
+     "hash": "496d1c186d1870baff0f8fc8de88208a2e90411dda3f0755fa21f8942e194efc",
+     "right": true
+    }
+   ]
+  },
+  {
+   "id": "rcpt_000005",
+   "leaf": "84b1664a371ec082a2373f45a0181543e863d494f3431f1b2e50ea011ba73541",
+   "proof": [
+    {
+     "hash": "be1aa8b050d46d33f473a6f96ed304cdb44088977dde2859f02593880a2caa24",
+     "right": false
+    },
+    {
+     "hash": "496d1c186d1870baff0f8fc8de88208a2e90411dda3f0755fa21f8942e194efc",
+     "right": true
+    }
+   ]
+  },
+  {
+   "id": "rcpt_000006",
+   "leaf": "496d1c186d1870baff0f8fc8de88208a2e90411dda3f0755fa21f8942e194efc",
+   "proof": [
+    {
+     "hash": "db7c1932c7bef6356a7ee6070330132add655c5cd7ef58e144ef4ab17a4ab3a6",
+     "right": false
+    }
+   ]
+  }
+ ],
+ "verifiedAt": "2026-11-05T20:29:09.625Z"
+}
