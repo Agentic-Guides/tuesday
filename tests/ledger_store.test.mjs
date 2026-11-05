@@ -25,6 +25,19 @@ test("receipts survive a write and read back with their core intact", () => {
   assert.equal(lines[0].core.hash, undefined, "core must not carry the hash");
 });
 
+test("a batch record does not consume a receipt number", () => {
+  const f = tmp();
+  const a = appendReceipt(rec("2026-11-05T01:00:00Z", "a".repeat(16)), f);
+  const b = appendReceipt(rec("2026-11-05T02:00:00Z", "b".repeat(16)), f);
+  assert.deepEqual([a.id, b.id], ["rcpt_000001", "rcpt_000002"]);
+  // A batch lands between receipts. It must not advance the receipt numbering.
+  appendBatch({ txHash: "0x1", root: "f".repeat(64), receiptIds: [a.id, b.id] }, f);
+  const c = appendReceipt(rec("2026-11-05T03:00:00Z", "c".repeat(16)), f);
+  assert.equal(c.id, "rcpt_000003", "no gap: a reader must never have to ask where rcpt_000003 went");
+  const ids = readLedger(f).filter((l) => l.kind === "receipt").map((l) => l.id);
+  assert.deepEqual(ids, ["rcpt_000001", "rcpt_000002", "rcpt_000003"]);
+});
+
 test("ids are sequential and stable", () => {
   const f = tmp();
   const a = appendReceipt(rec("2026-11-05T01:00:00Z", "a".repeat(16)), f);

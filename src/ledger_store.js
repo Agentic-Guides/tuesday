@@ -45,7 +45,11 @@ export function appendReceipt(receipt, file = DEFAULT_LEDGER_PATH) {
 
   // The core is everything the full SHA-256 is computed over: no hash, no customId.
   const { hash, customId, ...core } = receipt;
-  const seq = countLines(file) + 1;
+  // Number from the highest existing receipt id, not from the line count.
+  // Counting lines meant a batch record consumed a receipt number, so the ledger showed
+  // rcpt_000001, rcpt_000002, ... and then rcpt_000004 with no 000003 anywhere — which reads like a
+  // lost receipt. Receipt numbering must have no holes.
+  const seq = nextReceiptSeq(file);
   const id = `rcpt_${String(seq).padStart(6, '0')}`;
   const line = {
     kind: KIND_RECEIPT,
@@ -146,6 +150,17 @@ export function jstDate(iso) {
   if (Number.isNaN(t)) return null;
   // +9 hours, then read the UTC date of the shifted instant.
   return new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/** The next receipt number: one past the highest receipt id already in the ledger. */
+function nextReceiptSeq(file) {
+  let max = 0;
+  for (const l of readLedger(file)) {
+    if (l.kind !== KIND_RECEIPT || typeof l.id !== 'string') continue;
+    const m = /^rcpt_(\d+)$/.exec(l.id);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return max + 1;
 }
 
 function countLines(file) {
