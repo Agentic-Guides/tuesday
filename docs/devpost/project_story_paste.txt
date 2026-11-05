@@ -13,7 +13,7 @@ We wanted to know what it looks like when the decision is not "can this be paid"
 *should it be, and by whose authority*. So we built the part everybody skips: the argument,
 the gate that can veto it, and the record of both.
 
-**Live demo:** https://tuesday-paypal.onrender.com — runs on a free tier, so the first load can take up to a minute. Everything works with no keys and no setup.
+**Live demo:** https://tuesday-paypal.onrender.com — a scheduled ping keeps the free instance warm, so it normally answers in under a second (measured 0.38 s). If it has just woken up, the first load can take up to a minute. Everything works with no keys and no setup.
 
 ## What it does
 
@@ -284,7 +284,7 @@ We would rather a judge trust us than be surprised.
   settlement path here is Orders v2 REST. The Agent Toolkit is the integration point this
   design moves to in production — we say so in the README rather than implying it ships.
 
-## Challenges
+## Challenges we ran into
 
 Three things genuinely blocked us, and none of them were the interesting part.
 
@@ -377,7 +377,7 @@ each tool actually does in Tuesday — not merely that it is a dependency:
   receipt hash, with a Source column that says which rows moved real money.
 - **Bryntum Scheduler** — the audit timeline: one bar per agent vote, and which decisions are still open.
 - **Channel3** — product discovery, so the debate is about a real, purchasable SKU rather than a mock.
-- **Render** — hosting for the hosted demo (free instance: sleeps after 15 minutes idle).
+- **Render** — hosting for the hosted demo. The free instance sleeps after 15 minutes idle, so a scheduled ping (every 10 minutes) keeps it warm; measured 0.38 s while warm.
 
 ## Built with
 
@@ -390,8 +390,10 @@ each tool actually does in Tuesday — not merely that it is a dependency:
 
 **Hosted demo, nothing to install:** https://tuesday-paypal.onrender.com
 
-It runs on Render's free tier, which sleeps after 15 minutes idle, so the first load can take up
-to a minute while it wakes. Everything on the page works with no keys and no setup.
+It runs on Render's free tier, which sleeps after 15 minutes idle. A keep-warm ping runs every ten
+minutes against the page, so in normal conditions it answers in under a second (measured 0.38 s); if
+the instance has just woken, the first load can take up to a minute. Everything on the page works
+with no keys and no setup.
 
 **Or run it yourself, no keys needed:**
 

@@ -44,6 +44,29 @@ export function fingerprint(value) {
   return createHash('sha256').update(canonicalize(value)).digest('hex').slice(0, 16);
 }
 
+/**
+ * The FULL 32-byte SHA-256 of a receipt's core — everything the ledger fingerprint is truncated
+ * from. The 16-hex form exists because a PayPal custom_id has to stay short; the truncation is a
+ * transport decision, not a security one.
+ *
+ * Nothing new is stored: the core is already in the receipt, so this value is recomputable by
+ * anyone holding it. That is what makes it usable as an anchor target — anchoring this removes
+ * the "the ledger only commits to 64 bits" caveat entirely, without changing a single field.
+ *
+ * @param {object} receipt a receipt with `hash` (the 16-hex fingerprint)
+ * @returns {string} 64 hex characters, whose first 16 must equal receipt.hash
+ */
+export function fingerprintFull(receipt) {
+  if (!receipt || typeof receipt !== 'object') throw new Error('fingerprintFull: receipt required');
+  const { hash, customId, ...core } = receipt;
+  if (typeof hash !== 'string') throw new Error('fingerprintFull: receipt.hash missing');
+  const full = createHash('sha256').update(canonicalize(core)).digest('hex');
+  if (full.slice(0, 16) !== hash) {
+    throw new Error('fingerprintFull: recomputed hash does not match receipt.hash (tampered?)');
+  }
+  return full;
+}
+
 function fp(value) {
   return fingerprint(value ?? null);
 }

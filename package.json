@@ -26,5 +26,8 @@
   "license": "MIT",
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "ethers": "^6.17.0"
   }
 }

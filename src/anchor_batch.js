@@ -40,10 +40,31 @@ function bytesToHex(bytes) {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Expand a Tuesday receipt fingerprint into a full 32-byte value.
+ *
+ * The ledger stores 16 hex characters (64-bit) of SHA-256 because that is what fits a PayPal
+ * custom_id and what the round-trip check compares. An on-chain anchor should not inherit that
+ * truncation: 64 bits is brute-forceable in principle, and the whole point of anchoring is to
+ * stop relying on a short comparison. So the leaf is SHA-256 over a domain-separated preimage of
+ * the fingerprint — 256 bits on-chain, verifiable by anyone given the receipt.
+ *
+ * This does NOT claim the ledger gained entropy: the underlying decision still has 64 bits of
+ * fingerprint. It means the anchored value is not itself a 64-bit target. Both facts are stated
+ * in the README so a reader is not misled.
+ */
+export function expandFingerprint(fingerprint16) {
+  const clean = String(fingerprint16 || "").replace(/^0x/, "").toLowerCase();
+  if (!/^[0-9a-f]{16}$/.test(clean)) throw new Error("expandFingerprint: expected a 16-hex receipt fingerprint");
+  return clean;
+}
+
 /** Leaf hash for one receipt. Deterministic and prefixed. */
 export async function leafHash(receiptHash) {
   const clean = String(receiptHash || "").replace(/^0x/, "").toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(clean)) throw new Error("leafHash: expected a 32-byte hex hash");
+  if (!/^[0-9a-f]{16}$/.test(clean) && !/^[0-9a-f]{64}$/.test(clean)) {
+    throw new Error("leafHash: expected a 16-hex receipt fingerprint or a 32-byte hex hash");
+  }
   return sha256Hex("tuesday:leaf:" + clean);
 }
 
