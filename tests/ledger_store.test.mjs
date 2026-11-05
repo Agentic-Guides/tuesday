@@ -8,7 +8,7 @@ import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  appendReceipt, appendBatch, readLedger, pendingReceipts, pendingForDay, batchedReceiptIds,
+  appendReceipt, appendBatch, readLedger, pendingReceipts, pendingForDay, batchedReceiptIds, jstDate,
 } from "../src/ledger_store.js";
 
 const rec = (at, fp) => ({ hash: fp, customId: `triad1:${fp}`, v: 1, amount: 42, at, decision: "DENIED" });
@@ -94,13 +94,21 @@ test("a torn final line is skipped, not repaired", () => {
   assert.equal(after.filter((l) => l.kind === "receipt").length, 2, "the new receipt must survive a torn tail");
 });
 
-test("pendingForDay selects by the receipt's own date", () => {
+test("pendingForDay selects by the receipt's JST date, not its UTC date", () => {
   const f = tmp();
-  appendReceipt(rec("2026-11-05T01:00:00Z", "a".repeat(16)), f);
-  appendReceipt(rec("2026-11-06T01:00:00Z", "b".repeat(16)), f);
-  assert.equal(pendingForDay("2026-11-05", f).length, 1);
-  assert.equal(pendingForDay("2026-11-06", f).length, 1);
+  // 03:00Z = 12:00 JST on the same day.
+  appendReceipt(rec("2026-11-05T03:00:00Z", "a".repeat(16)), f);
+  // 19:59Z on the 5th = 04:59 JST on the 6th. Slicing the UTC string would file this under the 5th.
+  appendReceipt(rec("2026-11-05T19:59:23Z", "b".repeat(16)), f);
+  assert.equal(pendingForDay("2026-11-05", f).length, 1, "only the 03:00Z receipt belongs to the 5th");
+  assert.equal(pendingForDay("2026-11-06", f).length, 1, "19:59Z is the 6th in Tokyo");
   assert.equal(pendingForDay("2026-11-07", f).length, 0);
+});
+
+test("jstDate converts the boundary correctly", () => {
+  assert.equal(jstDate("2026-11-05T14:59:59Z"), "2026-11-05"); // 23:59 JST
+  assert.equal(jstDate("2026-11-05T15:00:00Z"), "2026-11-06"); // 00:00 JST
+  assert.equal(jstDate("nonsense"), null);
 });
 
 test("batchedReceiptIds is a set of ids, not of hashes", () => {

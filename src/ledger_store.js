@@ -128,9 +128,24 @@ export function pendingReceipts(file = DEFAULT_LEDGER_PATH) {
     .map(({ id, at, fp16, core }) => ({ id, at, fp16, core }));
 }
 
-/** Pending receipts whose `at` falls on the given local date (YYYY-MM-DD). */
+/**
+ * Pending receipts whose `at` falls on the given JST calendar date (YYYY-MM-DD).
+ *
+ * The receipt's `at` is a UTC ISO string. Slicing the first 10 characters gives the UTC date, and
+ * for anything created between 00:00 and 08:59 JST that is the PREVIOUS day — so a batch would
+ * silently carry receipts from the wrong day, off by up to nine hours. The operator's day is JST
+ * (the cron fires at 00:05 JST and means "yesterday in Tokyo"), so the comparison is done in JST.
+ */
 export function pendingForDay(day, file = DEFAULT_LEDGER_PATH) {
-  return pendingReceipts(file).filter((r) => typeof r.at === 'string' && r.at.slice(0, 10) === day);
+  return pendingReceipts(file).filter((r) => typeof r.at === 'string' && jstDate(r.at) === day);
+}
+
+/** Convert an ISO timestamp to its JST calendar date (YYYY-MM-DD). */
+export function jstDate(iso) {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  // +9 hours, then read the UTC date of the shifted instant.
+  return new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 function countLines(file) {
