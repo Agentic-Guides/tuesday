@@ -1,0 +1,87 @@
+{
+ "_what": "An anchor batch fired by scripts/anchor_daily.mjs: receipt cores, expected values, and the transaction carrying the root.",
+ "_how_to_recompute": [
+  "full = SHA-256(canonicalize(core)) — canonicalize: keys sorted recursively",
+  "leaf = SHA-256('tuesday:leaf:' + full)",
+  "parent(a,b) = SHA-256(bytes(min(a,b) + max(a,b)))",
+  "odd node at a level is promoted unchanged"
+ ],
+ "_decode_note": "The payload is 'tuesday:batch:' + the 32 raw bytes of the root. An earlier manual send used the 64-char hex string as text; both decode to the same root. Decode by hex, not by text.",
+ "day": "2026-11-05",
+ "txHash": "0x4c6f5cb03322f416ac0ff3ea7f71d5fb1b38c6425c145d09c081a90a56cbdbdc",
+ "block": 52028240,
+ "chainId": 80002,
+ "from": "0x1035D7347242Ee0977b3b76Ac89c4B176845a560",
+ "root": "25ee365c3f735354197ae49a6337d5f920965ba8f4775b51d993d51b5286bd43",
+ "onChainPayload": "0x747565736461793a62617463683a25ee365c3f735354197ae49a6337d5f920965ba8f4775b51d993d51b5286bd43",
+ "receipts": [
+  {
+   "id": "rcpt_000001",
+   "at": "2026-11-05T03:50:03.732Z",
+   "fp16": "aa585bd97cf1edd1",
+   "core": {
+    "v": 1,
+    "purchaseId": "pur_mw30bvzp_ujpz",
+    "amount": 42,
+    "category": "skincare",
+    "decision": "DENIED",
+    "threshold": 2,
+    "votes": {
+     "advocate": "for",
+     "auditor": "against",
+     "witness": "against"
+    },
+    "models": {
+     "advocate": "deepseek-v4.1-flash",
+     "auditor": "gemma4:31b",
+     "witness": "gpt-oss:120b"
+    },
+    "reasoning": {
+     "advocate": "fd143df1c7381b96",
+     "auditor": "83413b1dc30dbebf",
+     "witness": "5ad70e37e5acd427"
+    },
+    "engine": "llm",
+    "at": "2026-11-05T03:50:03.732Z"
+   }
+  },
+  {
+   "id": "rcpt_000002",
+   "at": "2026-11-05T03:50:08.098Z",
+   "fp16": "e5ccd9c30a4a8e0f",
+   "core": {
+    "v": 1,
+    "purchaseId": "pur_mw30c0dk_lv7c",
+    "amount": 24,
+    "category": "skincare",
+    "decision": "APPROVED",
+    "threshold": 2,
+    "votes": {
+     "advocate": "for",
+     "auditor": "for",
+     "witness": "for"
+    },
+    "models": {
+     "advocate": "deepseek-v4.1-flash",
+     "auditor": "gemma4:31b",
+     "witness": "gpt-oss:120b"
+    },
+    "reasoning": {
+     "advocate": "fa2d189f6f60993c",
+     "auditor": "4b2896d7e7e148c8",
+     "witness": "6be90256a7f4f452"
+    },
+    "engine": "llm",
+    "at": "2026-11-05T03:50:08.098Z"
+   }
+  }
+ ],
+ "expected_full_sha256": [
+  "aa585bd97cf1edd14bef7f0a775caee80866fcff42c9f6fdd2e1d464cf2b3347",
+  "e5ccd9c30a4a8e0f6430e913617ecb6b5a486b134fc1060852f7a3c9296a4bec"
+ ],
+ "expected_leaves": [
+  "f58d018b9c9d1570080b15ea20df226f52fe98c052b2eeca8a22038eaced8019",
+  "86a4c19dd7269d85a18058480f4f18822f27491fc044ae7cf2b4708902482f0d"
+ ]
+}
