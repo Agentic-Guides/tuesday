@@ -1,7 +1,7 @@
 {
   "name": "tuesday",
   "version": "1.0.0",
-  "description": "Tuesday — Anna's skincare brand bills $42/month to 12,000 subscribers. When a renewal fails at 3 AM, three AI agents debate retry/downgrade/release and a real PayPal subscription is updated on their consensus. The proof is stamped into the payment record.",
+  "description": "Tuesday — a skincare brand gives its restock agent a $200/month budget. Three independent LLMs (Advocate, Auditor, Witness) adjudicate every purchase before any money moves: no PayPal order is created unless the gates pass, the vote including the disagreement is hashed into the order's custom_id, and each day's receipts are batched into a Merkle root anchored on a public chain.",
   "type": "module",
   "main": "src/webmcp.js",
   "scripts": {

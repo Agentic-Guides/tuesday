@@ -14,7 +14,7 @@ Tuesday
 ## Elevator pitch (tagline, ~200 chars)
 
 ```
-Anna's skincare brand bills $42/month to 12,000 subscribers. When a renewal fails at 3 AM, three AI agents debate retry / downgrade / release — and nothing reaches PayPal unless they agree, and nothing is captured unless a human finishes the payment in PayPal.
+A skincare brand gives its restock agent a $200/month budget. Three independent LLMs adjudicate every purchase before any money moves — nothing reaches PayPal unless the gates pass, the vote including the disagreement is hashed into the order's custom_id, and each day's receipts are anchored on a public chain.
 ```
 
 ---
@@ -22,16 +22,18 @@ Anna's skincare brand bills $42/month to 12,000 subscribers. When a renewal fail
 ## "Inspiration"
 
 ```
-Anna's skincare brand bills $42 a month to 12,000 subscribers. On a Tuesday at 3 AM one
-renewal fails — a card expires. The brand's software sends a generic "payment failed" email
-and waits.
+A skincare brand gives its restock agent a $200/month purchasing budget. The Vitamin C serum
+is running low, so the agent wants to spend $42 of it. Nobody is watching the number when it
+decides.
 
-25–40% of subscription churn starts exactly there — at a failed payment, not at a lost
-customer. The subscriber never chose to leave; the plumbing gave up.
+Give an agent a budget and it will eventually spend all of it. The hard part is not letting it
+pay — it is giving it a defensible reason to stop. The failure mode that costs real money is
+not a rogue agent emptying an account; it is a thousand defensible-looking small purchases that
+nobody audited, each one approved by a single model that was happy to help.
 
-Retrying is easy to automate and easy to get wrong. A fixed retry rule cannot tell a stolen
-card from a flat wallet, and a single model cannot tell you why it decided. So we built the
-part everybody skips: the argument, and the record of it.
+We wanted to know what it looks like when the decision is not "can this be paid" but *should it
+be, and by whose authority*. So we built the part everybody skips: the argument, the gate that
+can veto it, and the record of both.
 ```
 
 ---
@@ -39,7 +41,7 @@ part everybody skips: the argument, and the record of it.
 ## "What it does"
 
 ```
-The demo opens on the story: TUESDAY, 3 AM — A $42 RENEWAL JUST FAILED.
+The demo opens on the question: CAN THE AGENT SPEND $42?
 
 1. Three agents take positions. Advocate argues for the customer and the revenue. Auditor
    argues against spending money the budget does not have. Witness is neutral and judges
