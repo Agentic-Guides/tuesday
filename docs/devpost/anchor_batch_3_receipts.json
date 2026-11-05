@@ -1,0 +1,101 @@
+{
+ "_what": "The three receipt cores anchored in batch 2. hash/customId removed, as the anchor requires.",
+ "_source": "Tuesday demo /api/adjudicate, 2026-11-05T03:26 JST",
+ "_canon": "canonicalize() in src/receipt.js: keys sorted recursively, JSON.stringify per scalar",
+ "_how_to_recompute": [
+  "full = SHA-256(canonicalize(core))",
+  "leaf = SHA-256('tuesday:leaf:' + full)",
+  "parent(a,b) = SHA-256(bytes(min(a,b) + max(a,b)))  [children's hex bytes concatenated after sorting]",
+  "3 leaves: level1 = [parent(l0,l1), l2]  (l2 promoted unchanged)",
+  "root = parent(level1[0], level1[1])"
+ ],
+ "expected_full_sha256": [
+  "95c4fb787ef0d3c9cf6dcde5d5da3ff4997bb6dbfe023b399c43fe439e2854b1",
+  "5455fd379bafcbf49c1e7aa9b0c0e28259730b0b88d1b82706e2386d62eda614",
+  "691624d7de249b4559cf7fd8b87f068713a4429c3ccca8f292d085c7caca89db"
+ ],
+ "expected_leaves": [
+  "531c1f8e1e140f26cb4b36dfdc67eaaa056abbad8103562cc03df5966041293d",
+  "10051c22fcb94d556c8cf03ae28bd2de30a340dce90d5dba56ed65b639bebcc3",
+  "86d13172f9256d6d424aef345f97f28bcb6231e549a867e13b57b929ff7d2f16"
+ ],
+ "expected_root": "efc6b523725f14fb58e9a2c3b55fd1b9b36ad873d63bf647830983444b4787f1",
+ "expected_on_chain_payload": "0x747565736461793a62617463683aefc6b523725f14fb58e9a2c3b55fd1b9b36ad873d63bf647830983444b4787f1",
+ "receipts": [
+  {
+   "v": 1,
+   "purchaseId": "pur_mw2zhds5_puhy",
+   "amount": 42,
+   "category": "skincare",
+   "decision": "DENIED",
+   "threshold": 2,
+   "votes": {
+    "advocate": "for",
+    "auditor": "against",
+    "witness": "against"
+   },
+   "models": {
+    "advocate": "deepseek-v4.1-flash",
+    "auditor": "gemma4:31b",
+    "witness": "gpt-oss:120b"
+   },
+   "reasoning": {
+    "advocate": "fd143df1c7381b96",
+    "auditor": "5bc3d3354e600853",
+    "witness": "9177a006c00631d4"
+   },
+   "engine": "llm",
+   "at": "2026-11-05T03:26:19.265Z"
+  },
+  {
+   "v": 1,
+   "purchaseId": "pur_mw2zhi11_c9vb",
+   "amount": 89,
+   "category": "skincare",
+   "decision": "DENIED",
+   "threshold": 2,
+   "votes": {
+    "advocate": "for",
+    "auditor": "against",
+    "witness": "against"
+   },
+   "models": {
+    "advocate": "deepseek-v4.1-flash",
+    "auditor": "gemma4:31b",
+    "witness": "gpt-oss:120b"
+   },
+   "reasoning": {
+    "advocate": "c77a338abfa87d3d",
+    "auditor": "66253474d8653bef",
+    "witness": "c269a5968d000430"
+   },
+   "engine": "llm",
+   "at": "2026-11-05T03:26:25.692Z"
+  },
+  {
+   "v": 1,
+   "purchaseId": "pur_mw2zhmz6_cu21",
+   "amount": 24,
+   "category": "skincare",
+   "decision": "APPROVED",
+   "threshold": 2,
+   "votes": {
+    "advocate": "for",
+    "auditor": "for",
+    "witness": "for"
+   },
+   "models": {
+    "advocate": "deepseek-v4.1-flash",
+    "auditor": "gemma4:31b",
+    "witness": "gpt-oss:120b"
+   },
+   "reasoning": {
+    "advocate": "1d86289cfba9e615",
+    "auditor": "6b428b7e8a6c54c2",
+    "witness": "06c4f4d4fe2650c1"
+   },
+   "engine": "llm",
+   "at": "2026-11-05T03:26:32.471Z"
+  }
+ ]
+}
