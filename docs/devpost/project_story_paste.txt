@@ -1,8 +1,6 @@
 ## Inspiration
 
-A skincare brand gives its restock agent a **$200/month purchasing budget**. The Vitamin C
-serum is running low, so the agent wants to spend $42 of it. Nobody is watching the number
-when it decides.
+Anna runs a skincare brand. She has given her restock agent a **$200/month purchasing budget** — and on a Tuesday, with the Vitamin C serum running low, the agent decides to spend $42 of it. Nobody is watching the number when it decides.
 
 Give an agent a budget and it will eventually spend all of it. **The hard part is not letting
 it pay — it is giving it a defensible reason to stop.** The failure mode that costs real
@@ -12,6 +10,8 @@ purchases that nobody audited, each one approved by a single model that was happ
 We wanted to know what it looks like when the decision is not "can this be paid" but
 *should it be, and by whose authority*. So we built the part everybody skips: the argument,
 the gate that can veto it, and the record of both.
+
+It happened on a Tuesday. That is why it is called Tuesday.
 
 **Live demo:** https://tuesday-paypal.onrender.com — a scheduled ping keeps the free instance warm, so it normally answers in under a second (measured 0.38 s). If it has just woken up, the first load can take up to a minute. Everything works with no keys and no setup.
 
@@ -228,9 +228,7 @@ way to say it.
 wrote stays in the ledger. The payment record therefore proves *that* a decision was made and
 *which* votes it had; it does not let you read the argument out of PayPal.
 
-**It trusts the ledger.** Verification compares the stamp against an entry Tuesday holds. If
-the ledger itself were rewritten the comparison would follow it. What the hash prevents is
-silent divergence between the two, not a compromised ledger.
+**The ledger is no longer the only witness.** In the operator's deployment, each day's receipts are hashed into a Merkle tree and the root is anchored in one transaction on Polygon Amoy ([example](https://amoy.polygonscan.com/tx/0x8dd95c3b74d6cee191283a6d045889e511a44b6863a18ffa00279c356dd799ef)) — a public record the operator cannot rewrite or backdate. Verification still compares the stamp against the ledger (E3); the anchored root is the independent check on the ledger itself, and each receipt carries a proof that ties it to that root. Three honest limits: a receipt becomes chain-provable when its day's batch closes, not the second it settles; the chain proves the record existed and was not altered — not that the decision was wise; and the hosted public demo runs unconfigured, so it reports anchoring as `not_configured` instead of claiming a proof it did not write. The fingerprint in `custom_id` is still 16 characters for readability.
 
 **`custom_id` is merchant metadata.** It is visible to the merchant and to PayPal, and this
 project does not claim PayPal's reviewers act on it. What it does is carry the decision with
@@ -336,6 +334,8 @@ seconds for. That changed what we put above the fold: a working "Prove it yourse
 narrative second.
 
 ## What's next
+
+**Receipts anchored on a public chain — live and automated.** The one limit stated above is that verification trusts our ledger. That limit now has a mechanism against it. Receipts are written to an append-only ledger as they settle, batched daily into a Merkle tree by a scheduled job, and only the root is written to Polygon Amoy, in a single transaction — no contract, no admin, nothing to upgrade. Anchoring one transaction per receipt would publish our decision volume, so the chain sees one root per day and nothing else; any single receipt can still be proven against that root with its Merkle proof (`verifyReceiptInBatch()`), without reading our database. A rewritten ledger entry produces a hash that no longer reaches the anchored root. This is not a roadmap item: the daily job is registered and has fired — its first automated batch is on-chain ([transaction](https://amoy.polygonscan.com/tx/0x4c6f5cb03322f416ac0ff3ea7f71d5fb1b38c6425c145d09c081a90a56cbdbdc)), and each batch's receipts are published with a standalone verifier so anyone can recompute the root without trusting us ([example batch record](https://github.com/Agentic-Guides/tuesday/blob/master/docs/devpost/anchors/batch-2026-11-05.json)). Unconfigured deployments say `not_configured` rather than pretending to anchor.
 
 **Subscriptions v1 and the PayPal Agent Toolkit.** Today the integration is Orders v2 with the decision hash
 in `custom_id`. The production shape is a subscription whose renewal is gated by the same three-agent
