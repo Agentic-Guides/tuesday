@@ -163,11 +163,6 @@ function nextReceiptSeq(file) {
   return max + 1;
 }
 
-function countLines(file) {
-  if (!existsSync(file)) return 0;
-  return readFileSync(file, 'utf8').split(/\r?\n/).filter((l) => l.trim()).length;
-}
-
 function appendLine(file, obj) {
   // A writer that died mid-line leaves the file without a trailing newline. Appending straight
   // onto that fragment would glue the new record to it, and BOTH would be lost on read. Terminate
