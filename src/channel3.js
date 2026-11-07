@@ -169,7 +169,12 @@ export class Channel3 {
       const mainImg = images.find(i => i && i.is_main_image) || images[0] || {};
       const brands = Array.isArray(p.brands) ? p.brands : [];
       const brand = brands[0]?.name || (typeof p.brand === 'object' ? p.brand?.name : p.brand) || offer.domain || '';
-      const rating = Number(p.ratings?.average ?? p.ratings?.rating ?? p.rating ?? 0);
+      // Channel3's product object carries no ratings field (verified against the product model
+      // docs), so this is almost always absent. Coercing that to 0 made every row read "★0",
+      // which looks like a real zero-star rating. null means "the catalogue does not provide a
+      // rating", and the UI says nothing rather than inventing one.
+      const ratingRaw = p.ratings?.average ?? p.ratings?.rating ?? p.rating;
+      const rating = (ratingRaw === undefined || ratingRaw === null || ratingRaw === '') ? null : Number(ratingRaw);
       return {
         id: p.id || p.product_id || `ch3_${Math.random().toString(36).slice(2, 8)}`,
         title: p.title || p.name || 'Unknown product',
