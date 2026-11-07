@@ -1,0 +1,110 @@
+{
+ "_what": "An anchor batch: the receipt cores, the expected values, and the transaction that carries them.",
+ "_how_to_recompute": [
+  "full = SHA-256(canonicalize(core))  — canonicalize: keys sorted recursively",
+  "leaf = SHA-256('tuesday:leaf:' + full)",
+  "parent(a,b) = SHA-256(bytes(min(a,b) + max(a,b)))",
+  "odd node at a level is promoted unchanged",
+  "root = walk up to the single remaining node"
+ ],
+ "day": "2026-11-07",
+ "txHash": "0x24fc9a243b40a6cc72b72a8941992d38a2ad54302399c63dfbab61501eae6cf9",
+ "block": 52241342,
+ "chainId": 80002,
+ "from": "0x1035D7347242Ee0977b3b76Ac89c4B176845a560",
+ "root": "db0926aa15ba230e0b4065e7b96c569d1a5df1c50351c62bb6749c30e2cd9ccc",
+ "onChainPayload": "0x747565736461793a62617463683adb0926aa15ba230e0b4065e7b96c569d1a5df1c50351c62bb6749c30e2cd9ccc",
+ "receipts": [
+  {
+   "id": "rcpt_000007",
+   "at": "2026-11-07T01:14:25.230Z",
+   "fp16": "9716f1a6db7513b7",
+   "core": {
+    "v": 1,
+    "purchaseId": "pur_mw5pnhkx_g0hg",
+    "amount": 500,
+    "category": "Vitamin C serum — restock for the skincare line",
+    "decision": "DENIED",
+    "threshold": 2,
+    "votes": {
+     "advocate": "for",
+     "auditor": "against",
+     "witness": "against"
+    },
+    "models": {
+     "advocate": "deepseek-v4.1-flash",
+     "auditor": "gemma4:31b",
+     "witness": "gpt-oss:120b"
+    },
+    "reasoning": {
+     "advocate": "1b0a518ba11000f8",
+     "auditor": "1ec3405908049089",
+     "witness": "b55c21d1e5f07848"
+    },
+    "engine": "llm",
+    "at": "2026-11-07T01:14:25.230Z"
+   }
+  },
+  {
+   "id": "rcpt_000008",
+   "at": "2026-11-07T01:14:36.100Z",
+   "fp16": "f2ffd96b1cfe47bd",
+   "core": {
+    "v": 1,
+    "purchaseId": "pur_mw5pnpnl_4zre",
+    "amount": 42,
+    "category": "Vitamin C serum — restock for the skincare line",
+    "decision": "APPROVED",
+    "threshold": 2,
+    "votes": {
+     "advocate": "for",
+     "auditor": "for",
+     "witness": "for"
+    },
+    "models": {
+     "advocate": "deepseek-v4.1-flash",
+     "auditor": "gemma4:31b",
+     "witness": "gpt-oss:120b"
+    },
+    "reasoning": {
+     "advocate": "0ca1295b2ee1c3c4",
+     "auditor": "57c64f6b366d68c5",
+     "witness": "8c3d27e421c2ed67"
+    },
+    "engine": "llm",
+    "at": "2026-11-07T01:14:36.100Z"
+   }
+  }
+ ],
+ "expected_full_sha256": [
+  "9716f1a6db7513b74760041e4d6dc65d0fe8efc6cc15aa4d7599cb8e99137ac7",
+  "f2ffd96b1cfe47bd23a49e2896b7c9a1bccd21c525697a6095d49f29761eb728"
+ ],
+ "expected_leaves": [
+  "327a2a554e429248cd60cec087231d23b8692563520614868ea96c2cb647c9d6",
+  "dce03c5381ca69076db63f36c38eaded5759ed8ceb3b21acbbee36a3b8eb9181"
+ ],
+ "proofs": [
+  {
+   "id": "rcpt_000007",
+   "leaf": "327a2a554e429248cd60cec087231d23b8692563520614868ea96c2cb647c9d6",
+   "proof": [
+    {
+     "hash": "dce03c5381ca69076db63f36c38eaded5759ed8ceb3b21acbbee36a3b8eb9181",
+     "right": true
+    }
+   ]
+  },
+  {
+   "id": "rcpt_000008",
+   "leaf": "dce03c5381ca69076db63f36c38eaded5759ed8ceb3b21acbbee36a3b8eb9181",
+   "proof": [
+    {
+     "hash": "327a2a554e429248cd60cec087231d23b8692563520614868ea96c2cb647c9d6",
+     "right": false
+    }
+   ]
+  }
+ ],
+ "verifiedAt": "2026-11-07T15:06:05.979Z"
+}

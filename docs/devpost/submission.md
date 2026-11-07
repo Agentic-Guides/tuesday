@@ -338,4 +338,4 @@ same code path uses three live models and the real Orders v2 sandbox. `npm test`
 assertions either way.
 
 - **Code:** https://github.com/Agentic-Guides/tuesday (MIT)
-- **Video:** 2:51, 1080p — https://youtu.be/bpc_QI-a6F4
+- **Video:** 2:51, 1080p — https://youtu.be/oZ3rDe_K7nY

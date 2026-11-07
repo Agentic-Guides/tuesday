@@ -52,7 +52,7 @@ Tuesday also audits what happens *after* the money moves — see **"After the mo
 | **Receipts** | Canonical JSON → SHA-256 → `triad1:<hash>`, carried in the order's `custom_id`. The receipt *is* the audit trail. |
 | **AG Grid** | The governance dashboard: every decision, every vote, every hash in one ledger. |
 | **Bryntum** | The vote timeline — one bar per agent vote, green approved / red blocked / blue neutral. |
-| **Channel3** | The candidate catalogue. Real products to argue about; curated fallback when no key is present. |
+| **Channel3** | The candidate catalogue, and a second way in: text search and **image search**. A photograph of a product is matched against the live catalogue, and the product it finds is adjudicated by the same tribunal. Curated fallback when no key is present. |
 | **WebMCP** (`navigator.modelContext`) | The flow is registered as page tools, so an agent browser can drive it too. |
 
 The whole thing is a zero-dependency Node.js server — `node demo/server.mjs`, then
@@ -249,12 +249,27 @@ charge down the side. The demo recomputes it live when you press **Show me all 1
 
 | charge \ budget | $30 | $60 | $150 | $400 |
 |---|---|---|---|---|
-| **$9** | APPROVED | APPROVED | APPROVED | APPROVED |
-| **$18** | CONDITIONAL | APPROVED | APPROVED | APPROVED |
-| **$42** | DENIED | CONDITIONAL | APPROVED | APPROVED |
-| **$90** | DENIED | DENIED | CONDITIONAL | APPROVED |
+| **$9** | APPROVED (5/5) | APPROVED (5/5) | APPROVED (5/5) | APPROVED (5/5) |
+| **$18** | APPROVED (3/5) | APPROVED (5/5) | APPROVED (4/5) | APPROVED (5/5) |
+| **$42** | DENIED (5/5) | DENIED (5/5) | DENIED (5/5) | DENIED (5/5) |
+| **$90** | DENIED (5/5) | DENIED (5/5) | DENIED (5/5) | DENIED (5/5) |
 
-Bigger charge, stricter verdict. Bigger budget, looser verdict. Every cell moves for a reason.
+Each cell is the majority of five live runs against the hosted demo, and the fraction is how often
+it won. Fourteen of the sixteen cells returned the same verdict five times out of five. The two
+that did not are on the $18 row, where the third vote flipped between APPROVED and CONDITIONAL —
+small purchases near a small budget line are exactly where three models disagree with themselves,
+and that disagreement is the product, not a defect in it. Press **Show me all 16 cells** and you
+will get this table's shape back; a single cell may land on the minority verdict, and the receipt
+for that run will name the gate that decided it.
+
+Two different mechanisms produce the DENIED cells, and it is worth keeping them apart. Where a
+charge exceeds the remaining budget, a named gate refuses it before the models are even asked, and
+no argument moves it — that is the $90 row against $30 and $60, and $42 against $30. Where the
+budget does cover the charge, the refusal comes from the vote instead: $42 against $400 is a $42
+charge with $400 available, and it still lands DENIED at 1 for, 2 against, because the Auditor and
+the Witness find a reason the gate does not encode. That is the whole point of putting three models
+above a deterministic gate: the gate catches what can be computed, and the tribunal catches what
+cannot. Both outcomes are DENIED, and the receipt says which one it was.
 
 ## What is real and what is not
 
@@ -271,6 +286,11 @@ We would rather a judge trust us than be surprised.
   demo serves the photographs it received rather than stock art. They appear in the candidate
   grid and on the recommendation card, so the purchase under audit carries a real brand and a
   real price tag.
+- **Search by photograph:** Channel3's image search takes a picture and returns the product in it.
+  Pick or drop a photo in the Shop tab, and the product it matches is judged by the same three
+  agents, through the same gates, with the same receipt. The photo is an entry point, not a way
+  around the tribunal. Deployments without a Channel3 key answer `image_search_unavailable`
+  rather than reporting "no match", because those are different facts.
 - **Runs without keys:** the deterministic engine, a mock PayPal client and a mock catalogue.
   That is the default, so the demo always runs. `SETUP.md` explains how to run live.
 - **What changes with no keys, precisely:** the three-agent tribunal still runs and still gates the
@@ -382,8 +402,9 @@ each tool actually does in Tuesday — not merely that it is a dependency:
 
 ## Built with
 
-`paypal` `paypal-orders-v2` `ag-grid` `bryntum-scheduler` `channel3` `webmcp` `nodejs`
-`javascript` `multi-agent` `llm` `sha-256` `channel3-catalog`
+`paypal` `paypal-orders-v2` `paypal-disputes-v1` `ag-grid` `bryntum` `channel3`
+`channel3-image-search` `webmcp` `nodejs` `multi-agent` `ai-agents` `agentic-commerce`
+`llm` `ollama` `sha256` `merkle-tree` `polygon-amoy` `tamper-evident` `render`
 
 ---
 
@@ -409,4 +430,4 @@ same code path uses three live models and the real Orders v2 sandbox. `npm test`
 assertions either way.
 
 - **Code:** https://github.com/Agentic-Guides/tuesday (MIT)
-- **Video:** 2:51, 1080p — https://youtu.be/bpc_QI-a6F4
+- **Video:** 2:51, 1080p — https://youtu.be/oZ3rDe_K7nY

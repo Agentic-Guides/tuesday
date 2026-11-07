@@ -192,7 +192,7 @@ multi-agent, llm, sha-256, channel3-catalog
 
 ```
 Code:  https://github.com/Agentic-Guides/tuesday
-Video: https://youtu.be/bpc_QI-a6F4
+Video: https://youtu.be/oZ3rDe_K7nY
 Run:   git clone https://github.com/Agentic-Guides/tuesday.git && cd triad && node demo/server.mjs
        → http://localhost:8787   (no API keys needed)
 ```

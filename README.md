@@ -7,7 +7,7 @@
 A working prototype for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
 **Code:** https://github.com/Agentic-Guides/tuesday · **Demo video:** 2:51, 1080p —
-https://youtu.be/bpc_QI-a6F4
+https://youtu.be/oZ3rDe_K7nY
 
 **Run it in one command** — no keys needed, the demo falls back to a deterministic engine, a mock
 PayPal client and a curated catalogue, so it always runs:
@@ -59,7 +59,7 @@ The card shows both hashes so you can see exactly what was compared.
 
 ### The 5-minute walkthrough
 
-[Demonstration video](https://youtu.be/bpc_QI-a6F4) — 2:51, 1080p. Narrated, and
+[Demonstration video](https://youtu.be/oZ3rDe_K7nY) — 2:51, 1080p. Narrated, and
 every verdict in it is the demo running: APPROVED, DENIED, and the money-gate suite returning
 156 passed / 0 failed on screen.
 Six screenshots are in `devpost-media/`, with the captions they carry in `devpost-media/captions.json`.
