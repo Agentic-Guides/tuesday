@@ -248,6 +248,24 @@
               color:#241f1a; cursor:pointer; transition:all .2s cubic-bezier(.32,.72,0,1) }
   .cat-chip:hover { border-color:#c0203c; color:#241f1a }
   .cat-chip.is-on { background:#c0203c; border-color:#c0203c; color:#ffffff }
+  /* The buy link is the point of the card: a catalogue result the tribunal approved should be
+     purchasable from the verdict, not from a separate tab. */
+  .buy-link { display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding:10px 16px;
+              min-height:44px; border-radius:8px; background:#c0203c; color:#fff; font-weight:700;
+              font-size:14px; text-decoration:none; transition:background .18s }
+  .buy-link:hover { background:#a01a31 }
+  .buy-missing { margin-top:10px; font-size:12.5px; color:#8a5a00; background:#fff8e6;
+                 border:1px solid #f0dca8; border-radius:8px; padding:8px 12px }
+  .stock-pill { margin-left:8px; font-size:11px; padding:2px 8px; border-radius:999px;
+                background:#f2efe8; color:#6b6b74 }
+  .stock-pill.ok { background:#e8f6ee; color:#1c7a4a }
+  .offer-more { margin-top:12px; border-top:1px solid #e6e1d6; padding-top:10px }
+  .offer-more-h { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#6b6b74; margin-bottom:6px }
+  .offer-row { display:flex; gap:10px; align-items:baseline; font-size:12.5px; padding:3px 0 }
+  .offer-row a { color:#241f1a; text-decoration:underline }
+  .offer-row span:nth-child(2) { margin-left:auto; font-variant-numeric:tabular-nums; font-weight:600 }
+  .offer-stock { color:#6b6b74; font-size:11px; min-width:64px; text-align:right }
+  .offer-stock.ok { color:#1c7a4a }
   /* Image search: a drop target, because choosing a file from a picker feels like a form
      and a photograph is the kind of thing people already have on their desktop. */
   .img-drop { position:relative; display:grid; place-items:center; min-height:150px;
@@ -1058,6 +1076,11 @@ function initLedgerGrid() {
           : '<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:#dcfce7;color:#166534;font-weight:600">live</span>' },
       { field: 'at', headerName: 'Time', width: 100, minWidth: 92,
         valueFormatter: p => new Date(p.value).toLocaleTimeString() },
+      { field: 'url', headerName: 'Buy', width: 92,
+        cellRenderer: (p) => (p.value
+          ? `<a href="${p.value}" target="_blank" rel="noopener" style="color:#c0203c;font-weight:700;text-decoration:underline">buy ↗</a>`
+          : '<span style="color:#9a9aa2">—</span>'),
+      },
       { field: 'category', headerName: 'Item', flex: 2.4, minWidth: 260,
         tooltipField: 'category',
         valueFormatter: p => String(p.value ?? '').length > 26
@@ -1460,11 +1483,38 @@ async function renderShopResult(r) {
   const reco = document.getElementById('reco');
   if (r.ok && r.recommendation) {
     const pr = r.recommendation.product;
+    // A product card without a way to buy it is a picture. Channel3 returns the offer URL,
+    // the merchant and the stock state, so the card shows the purchase the tribunal just
+    // approved rather than describing it.
+    const others = (pr.offers || []).filter(o => o.url && o.url !== pr.url)
+      .sort((a, b) => a.price - b.price).slice(0, 3);
+    const otherRows = others.length ? `
+      <div class="offer-more">
+        <div class="offer-more-h">Also sold at</div>
+        ${others.map(o => `<div class="offer-row"><a href="${o.url}" target="_blank" rel="noopener">${o.merchant || 'retailer'}</a>
+          <span>$${Number(o.price).toFixed(2)}</span>
+          <span class="offer-stock ${/in ?stock/i.test(o.availability) ? 'ok' : ''}">${o.availability || ''}</span></div>`).join('')}
+      </div>` : '';
+    const variants = (pr.variants || []).slice(0, 4);
+    const variantRows = variants.length ? `
+      <div class="offer-more">
+        <div class="offer-more-h">Variants</div>
+        ${variants.map(v => `<div class="offer-row"><span>${v.title}</span>
+          <span>${v.price ? '$' + Number(v.price).toFixed(2) : ''}</span>
+          <span class="offer-stock ${/in ?stock/i.test(v.availability) ? 'ok' : ''}">${v.availability || ''}</span></div>`).join('')}
+      </div>` : '';
+    const buy = pr.url
+      ? `<a class="buy-link" href="${pr.url}" target="_blank" rel="noopener">Buy at ${pr.merchant || 'the retailer'} — $${Number(pr.price).toFixed(2)}</a>`
+      : `<div class="buy-missing">No purchase link in this catalogue row.</div>`;
     reco.innerHTML = `<div class="reco ${r.recommendation.decision==='CONDITIONAL'?'cond':''}">
     ${r.recommendation.product.image ? `<img class="reco-img" src="${r.recommendation.product.image}" alt="">` : ''}
       <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px">Tribunal Consensus — ${r.recommendation.decision}</div>
       <div class="t">${pr.title} <span style="color:var(--dim);font-weight:400">· ${pr.brand}</span></div>
-      <div class="p">$${Number(pr.price).toLocaleString()} <span style="font-size:12px;color:var(--dim)">★${pr.rating}</span></div>
+      <div class="p">$${Number(pr.price).toLocaleString()} <span style="font-size:12px;color:var(--dim)">★${pr.rating}</span>
+        ${pr.availability ? `<span class="stock-pill ${/in ?stock/i.test(pr.availability) ? 'ok' : ''}">${pr.availability}</span>` : ''}</div>
+      ${buy}
+      ${otherRows}
+      ${variantRows}
       <div style="font-size:12px;color:var(--dim);margin-top:6px">${r.candidates} candidates · ${r.evaluated} evaluated · catalog: ${r.catalogMode}</div>
     </div>`;
   } else {

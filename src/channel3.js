@@ -184,6 +184,24 @@ export class Channel3 {
         url: offer.url || p.url || p.link || '',
         image: mainImg.url || '',
         images: images.map(i => i && i.url).filter(Boolean),
+        // The whole point of a catalogue layer is that the same product is sold in more
+        // than one place at more than one price. Keeping only offers[0] threw that away and
+        // made Channel3 look like a picture lookup. Every offer is kept so the UI can show
+        // who else sells it and for how much.
+        offers: (Array.isArray(p.offers) ? p.offers : []).map(o => ({
+          merchant: o.domain || o.merchant || '',
+          price: Number((typeof o.price === 'object' ? o.price?.price : o.price) ?? 0),
+          currency: (typeof o.price === 'object' ? o.price?.currency : o.currency) || 'USD',
+          availability: o.availability || '',
+          url: o.url || '',
+        })).filter(o => o.url),
+        // Variants are what makes a product page real rather than a title: sizes, colours,
+        // counts. Kept as a short list because a demo card cannot show fifty of them.
+        variants: (Array.isArray(p.variants) ? p.variants : []).slice(0, 8).map(v => ({
+          title: v.title || v.name || '',
+          price: Number(v.price ?? 0) || null,
+          availability: v.availability || '',
+        })).filter(v => v.title),
       };
     });
   }

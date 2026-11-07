@@ -72,6 +72,11 @@ export function createTriadCommerce({ triad, catalog } = {}) {
         price: r.product.price,
         rating: r.product.rating,
         decision: r.decision,
+        url: r.product.url || null,
+        merchant: r.product.merchant || null,
+        availability: r.product.availability || null,
+        offers: r.product.offers || [],
+        variants: r.product.variants || [],
       })),
       message: approved
         ? `Consensus on "${approved.product.title}" (${approved.decision}).`
@@ -159,6 +164,13 @@ export function createTriadCommerce({ triad, catalog } = {}) {
         price: r.product.price,
         rating: r.product.rating,
         decision: r.decision,
+        // Where it can actually be bought, who else sells it, and whether it is in stock.
+        // A catalogue result without a buy link is a picture of a product.
+        url: r.product.url || null,
+        merchant: r.product.merchant || null,
+        availability: r.product.availability || null,
+        offers: r.product.offers || [],
+        variants: r.product.variants || [],
       })),
       message: approved
         ? `Consensus on "${approved.product.title}" (${approved.decision}).`
