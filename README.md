@@ -71,9 +71,12 @@ and the photograph all come from the Channel3 API, and the demo serves the same 
 The Tribunal sees the shape and the price — the decision has to be about the *purchase*, and a real
 brand and a real price tag are what make that purchase look like one a person would actually make.
 
-| Skincare | Supplements | Electronics | Consumables |
+You can also search by photograph: Channel3's `/v1/image-search` takes an image and returns the
+product in it, and that product goes through the same tribunal as a text search (`/api/shop-by-image`).
+
+| Retinol | Hyaluronic | Sunscreen | Eye cream |
 |---|---|---|---|
-| ![Hyaluronic Acid Serum 30ml — $42](docs/screenshots/product_ch3_skin_001.jpg) | ![Creatine Monohydrate 300g — $26](docs/screenshots/product_ch3_supp_004.jpg) | ![USB-C 100W Charger — $54](docs/screenshots/product_ch3_elec_001.jpg) | ![Printer Paper A4 — $12](docs/screenshots/product_ch3_cons_001.jpg) |
+| ![CeraVe Skin Renewing Retinol Face Cream Serum — $25.99](docs/screenshots/product_ch3_skin_001.jpg) | ![The INKEY List Hyaluronic Acid Serum — $10](docs/screenshots/product_ch3_skin_002.jpg) | ![COOLA Organic Classic Face Sunscreen SPF 50 — $32](docs/screenshots/product_ch3_skin_003.jpg) | ![La Mer Rejuvenating Eye Cream — $245](docs/screenshots/product_ch3_skin_004.jpg) |
 
 ### Three agents, three models, one decision
 
