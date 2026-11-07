@@ -126,8 +126,8 @@ Real: the PayPal Orders v2 REST path, the hash round-trip in custom_id, the mone
 (asserted by 31 passing tests), the three-model debate, the gates, the ledger, the product
 catalogue flow.
 
-Product images: real photographs, 24 of them, generated for this project with FLUX (Cloudflare
-Workers AI) and served by the demo itself — they appear in the candidate grid and on the
+Product data and photographs: live Channel3 results — search, brand, title, price and image for all
+24 products come from the Channel3 API, and the demo serves the photographs it received — they appear in the candidate grid and on the
 recommendation card. The labels are deliberately blank, because the decision is about the
 purchase, not the branding.
 
@@ -165,7 +165,7 @@ running every button before recording, rather than assuming the earlier run stil
 
 ```
 paypal, paypal-orders-v2, ag-grid, bryntum-scheduler, channel3, webmcp, nodejs, javascript,
-multi-agent, llm, sha-256, flux
+multi-agent, llm, sha-256, channel3-catalog
 ```
 
 ---
@@ -192,7 +192,7 @@ multi-agent, llm, sha-256, flux
 
 ```
 Code:  https://github.com/Agentic-Guides/tuesday
-Video: https://youtu.be/MfccT2qSvhM
+Video: https://youtu.be/bpc_QI-a6F4
 Run:   git clone https://github.com/Agentic-Guides/tuesday.git && cd triad && node demo/server.mjs
        → http://localhost:8787   (no API keys needed)
 ```

@@ -7,7 +7,7 @@
 A working prototype for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
 **Code:** https://github.com/Agentic-Guides/tuesday · **Demo video:** 2:51, 1080p —
-https://youtu.be/MfccT2qSvhM
+https://youtu.be/bpc_QI-a6F4
 
 **Run it in one command** — no keys needed, the demo falls back to a deterministic engine, a mock
 PayPal client and a curated catalogue, so it always runs:
@@ -59,16 +59,17 @@ The card shows both hashes so you can see exactly what was compared.
 
 ### The 5-minute walkthrough
 
-[Demonstration video](https://youtu.be/MfccT2qSvhM) — 2:51, 1080p. Narrated, and
+[Demonstration video](https://youtu.be/bpc_QI-a6F4) — 2:51, 1080p. Narrated, and
 every verdict in it is the demo running: APPROVED, DENIED, and the money-gate suite returning
 156 passed / 0 failed on screen.
 Six screenshots are in `devpost-media/`, with the captions they carry in `devpost-media/captions.json`.
 
 ### What the agents argue about — the real catalogue
 
-Every product image below is generated for this project (FLUX via Cloudflare Workers AI) and served by
-the demo itself; the demo shows the same files. The Tribunal only sees the shape and the price —
-the label is deliberately blank, because the decision must be about the *purchase*, not the branding.
+Every product below is a live Channel3 catalogue result: the search, the brand, the title, the price
+and the photograph all come from the Channel3 API, and the demo serves the same 24 files it received.
+The Tribunal sees the shape and the price — the decision has to be about the *purchase*, and a real
+brand and a real price tag are what make that purchase look like one a person would actually make.
 
 | Skincare | Supplements | Electronics | Consumables |
 |---|---|---|---|

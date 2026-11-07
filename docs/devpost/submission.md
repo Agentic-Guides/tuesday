@@ -278,10 +278,11 @@ We would rather a judge trust us than be surprised.
   the dispute gate, plus the end-to-end flow. The refusal paths are asserted directly — a
   DENIED verdict calls `createOrder` zero times, a weak-evidence contest is refused, and a
   refund without a human is refused at any amount.
-- **Product images:** real photographs, 24 of them, generated for this project with FLUX
-  (Cloudflare Workers AI) and served by the demo itself — they appear in the candidate grid
-  and on the recommendation card. The labels are deliberately blank, because the decision is
-  about the purchase, not the branding.
+- **Product data and photographs:** live Channel3 results — the search, brand, title, price and
+  image for all 24 products come from the Channel3 API (`catalog: LIVE` on `/api/mode`), and the
+  demo serves the photographs it received rather than stock art. They appear in the candidate
+  grid and on the recommendation card, so the purchase under audit carries a real brand and a
+  real price tag.
 - **Runs without keys:** the deterministic engine, a mock PayPal client and a mock catalogue.
   That is the default, so the demo always runs. `SETUP.md` explains how to run live.
 - **What changes with no keys, precisely:** the three-agent tribunal still runs and still gates the
@@ -297,7 +298,7 @@ We would rather a judge trust us than be surprised.
 ## Built with
 
 `paypal` `paypal-orders-v2` `ag-grid` `bryntum-scheduler` `channel3` `webmcp` `nodejs`
-`javascript` `multi-agent` `llm` `sha-256` `flux`
+`javascript` `multi-agent` `llm` `sha-256` `channel3-catalog`
 
 ---
 
@@ -337,4 +338,4 @@ same code path uses three live models and the real Orders v2 sandbox. `npm test`
 assertions either way.
 
 - **Code:** https://github.com/Agentic-Guides/tuesday (MIT)
-- **Video:** 2:51, 1080p — https://youtu.be/MfccT2qSvhM
+- **Video:** 2:51, 1080p — https://youtu.be/bpc_QI-a6F4
