@@ -248,6 +248,18 @@
               color:#241f1a; cursor:pointer; transition:all .2s cubic-bezier(.32,.72,0,1) }
   .cat-chip:hover { border-color:#c0203c; color:#241f1a }
   .cat-chip.is-on { background:#c0203c; border-color:#c0203c; color:#ffffff }
+  /* Image search: a drop target, because choosing a file from a picker feels like a form
+     and a photograph is the kind of thing people already have on their desktop. */
+  .img-drop { position:relative; display:grid; place-items:center; min-height:150px;
+              border:1.5px dashed #d8d2c4; border-radius:10px; background:#fbfaf6;
+              padding:16px; cursor:pointer; transition:border-color .18s, background .18s }
+  .img-drop:hover, .img-drop.dragover { border-color:#c0203c; background:#fff6f6 }
+  .img-drop-inner { text-align:center; font-size:13px }
+  .img-drop-icon { font-size:30px; margin-bottom:4px }
+  .img-browse { color:#c0203c; text-decoration:underline }
+  .hidden-input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none }
+  .img-preview { max-width:100%; max-height:220px; border-radius:8px; display:block }
+  .img-drop.has-image .img-drop-inner { display:none }
 
   
   /* ═══════════════════════════════════════════════════════════════════
@@ -765,6 +777,33 @@
         <div class="field"><label>Max price (USD)</label><input id="maxPrice" type="number" value="200" /></div>
       </div>
       <button id="shopBtn">🛒 Find products &amp; convene the Tribunal <span class="btn-ico">→</span></button>
+    </div>
+
+    <!-- Search by picture. Channel3 accepts a base64 payload, so a file picked from this
+         machine can be searched without uploading it anywhere else first. The product it
+         finds goes through the same tribunal — the photo is an entry point, not a bypass. -->
+    <div class="panel">
+      <h2>Or show it a photo</h2>
+      <p style="font-size:12.5px;color:var(--dim);margin:2px 0 10px">
+        Pick or drop a picture of a product. Channel3 matches it against the live catalogue, then the
+        same three agents decide whether it may be bought. Nothing is uploaded anywhere except to
+        Channel3's image-search endpoint.
+      </p>
+      <div id="imgDrop" class="img-drop">
+        <input id="imgInput" type="file" accept="image/*" class="hidden-input" />
+        <div class="img-drop-inner">
+          <div class="img-drop-icon">🖼️</div>
+          <div><b>Drop a photo here</b> or <span class="img-browse">choose a file</span></div>
+          <div style="font-size:11.5px;color:var(--dim);margin-top:4px">JPEG or PNG, up to 8&nbsp;MB</div>
+        </div>
+        <img id="imgPreview" class="img-preview hidden" alt="The photo you chose" />
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div class="field"><label>Monthly budget (USD)</label><input id="imgBudget" type="number" value="300" /></div>
+        <div class="field"><label>Already spent this month (USD)</label><input id="imgSpent" type="number" value="0" /></div>
+      </div>
+      <button id="imgBtn" disabled>🔎 Find this product &amp; convene the Tribunal <span class="btn-ico">→</span></button>
+      <div id="imgNote" style="font-size:12px;color:var(--dim);margin-top:8px"></div>
     </div>
 
     <div id="shopResult" class="hidden">
@@ -1412,7 +1451,12 @@ bindRun('shopBtn', { idle: '🛒 Find products & convene the Tribunal', busy: 'C
   };
   const r = await api('/api/shop', body);
   document.getElementById('shopResult').classList.remove('hidden');
+  renderShopResult(r);
+});
 
+// One renderer for both entry points. Text search and photo search produce the same shape,
+// so a second copy of this block would only be a place for the two to drift apart.
+async function renderShopResult(r) {
   const reco = document.getElementById('reco');
   if (r.ok && r.recommendation) {
     const pr = r.recommendation.product;
@@ -1432,7 +1476,113 @@ bindRun('shopBtn', { idle: '🛒 Find products & convene the Tribunal', busy: 'C
   if (candidateGridApi) { candidateGridApi.setGridOption('rowData', r.allResults || []);
     fitGridHeight(document.getElementById('candidateGrid'), candidateGridApi, (r.allResults || []).length); }
   await refreshLedger();
-});
+}
+
+// --- Search by photograph ------------------------------------------------------------
+// Channel3 takes a base64 payload, so the file never leaves this page except to the
+// /api/shop-by-image endpoint. What comes back is adjudicated by the same tribunal, and the
+// rendering below is deliberately identical to the text search: one result surface, so a
+// judge cannot tell which entry point a verdict came from — and neither can we.
+let pickedImageB64 = null;
+let pickedImageName = '';
+
+const imgDrop = document.getElementById('imgDrop');
+const imgInput = document.getElementById('imgInput');
+const imgPreview = document.getElementById('imgPreview');
+const imgBtn = document.getElementById('imgBtn');
+const imgNote = document.getElementById('imgNote');
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const s = String(fr.result || '');
+      const comma = s.indexOf(',');
+      resolve(comma >= 0 ? s.slice(comma + 1) : s);
+    };
+    fr.onerror = () => reject(new Error('could not read that file'));
+    fr.readAsDataURL(file);
+  });
+}
+
+async function acceptImageFile(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type)) {
+    imgNote.textContent = 'That file is not an image.';
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    imgNote.textContent = `That image is ${(file.size / 1048576).toFixed(1)} MB — the limit is 8 MB.`;
+    return;
+  }
+  pickedImageName = file.name || 'photo';
+  pickedImageB64 = await readFileAsBase64(file);
+  imgPreview.src = URL.createObjectURL(file);
+  imgPreview.classList.remove('hidden');
+  imgDrop.classList.add('has-image');
+  imgBtn.disabled = false;
+  imgNote.textContent = `${pickedImageName} · ${(file.size / 1024).toFixed(0)} KB — ready to search.`;
+}
+
+if (imgDrop) {
+  imgDrop.addEventListener('click', (e) => {
+    if (e.target === imgPreview) return;
+    imgInput.click();
+  });
+  imgInput.addEventListener('change', () => acceptImageFile(imgInput.files && imgInput.files[0]));
+  ['dragenter', 'dragover'].forEach((ev) => imgDrop.addEventListener(ev, (e) => {
+    e.preventDefault(); imgDrop.classList.add('dragover');
+  }));
+  ['dragleave', 'drop'].forEach((ev) => imgDrop.addEventListener(ev, (e) => {
+    e.preventDefault(); imgDrop.classList.remove('dragover');
+  }));
+  imgDrop.addEventListener('drop', (e) => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    acceptImageFile(f);
+  });
+}
+
+if (imgBtn) {
+  imgBtn.onclick = async () => {
+    if (!pickedImageB64) return;
+    imgBtn.disabled = true;
+    const idle = imgBtn.textContent;
+    imgBtn.textContent = 'Channel3 matching your photo → Tribunal deliberating…';
+    try {
+      const body = {
+        base64Image: pickedImageB64,
+        monthlyBudget: Number(document.getElementById('imgBudget').value),
+        spentThisMonth: Number(document.getElementById('imgSpent').value),
+      };
+      const res = await fetch('/api/shop-by-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const r = await res.json();
+      if (!res.ok) {
+        // Say exactly why. "No match" and "this deployment cannot look at photos" are very
+        // different answers, and only one of them is about the photo.
+        imgNote.textContent = r.message || r.error || `image search failed (${res.status})`;
+        if (r.error === 'image_search_unavailable') {
+          imgNote.textContent = 'Image search needs a live Channel3 key. This deployment runs ' +
+            'without one, so no visual match was attempted — the text search above still works.';
+        }
+        return;
+      }
+      if (!r.ok || !r.allResults || !r.allResults.length) {
+        imgNote.textContent = r.message || 'Channel3 found no product that matches this picture.';
+        return;
+      }
+      imgNote.textContent = `Matched ${r.evaluated} product(s) from your photo.`;
+      document.getElementById('shopResult').classList.remove('hidden');
+      renderShopResult(r);
+    } catch (e) {
+      imgNote.textContent = 'image search failed: ' + (e && e.message ? e.message : e);
+    } finally {
+      imgBtn.disabled = false;
+      imgBtn.textContent = idle;
+    }
+  };
+}
 
 // --- Pick a candidate and settle it -------------------------------------------------
 // The tribunal ranks the whole catalogue; this is where a judge overrides the ranking

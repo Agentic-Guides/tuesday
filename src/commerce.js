@@ -20,6 +20,65 @@ export function createTriadCommerce({ triad, catalog } = {}) {
    *   2. Adjudicate the top candidate (the tribunal)
    *   3. Optionally create a PayPal order
    */
+  /**
+   * Find a product with a picture instead of words.
+   *
+   * Kept separate from `triadShop` because the entry point is different, but the result is
+   * fed to the same `adjudicateCandidates`, so an image-found product is judged by exactly
+   * the same gates as a text-found one. The photograph is a way in, not a shortcut past the
+   * tribunal.
+   */
+  async function searchByImage({ base64Image, imageUrl, limit = 5 } = {}) {
+    return _catalog.searchByImage({ base64Image, imageUrl, limit });
+  }
+
+  /**
+   * Run the tribunal over an explicit candidate list.
+   *
+   * Extracted from `triadShop` so image search and text search share one implementation —
+   * two copies of this loop would drift, and the gates are the part of this project that
+   * must not differ between entry points.
+   */
+  async function adjudicateCandidates(candidates, { category = 'image search', monthlyBudget, spentThisMonth, recentPurchases } = {}) {
+    const judged = await Promise.all(
+      candidates.slice(0, 5).map((product) =>
+        _triad.triadAdjudicate({
+          amount: product.price,
+          category: product.title,
+          reason: `Match for a uploaded photo: ${product.brand} ${product.title}`,
+          monthlyBudget,
+          spentThisMonth,
+          recentPurchases: Array.isArray(recentPurchases) ? recentPurchases : [],
+        }).then((r) => ({ product, decision: r.decision, adjudication: r }))
+      )
+    );
+    const approved = judged.find(r => r.decision === DECISION.APPROVED)
+      || judged.find(r => r.decision === DECISION.CONDITIONAL)
+      || null;
+    return {
+      ok: Boolean(approved),
+      category,
+      candidates: candidates.length,
+      evaluated: judged.length,
+      catalogMode: _catalog.mode,
+      recommendation: approved
+        ? { product: approved.product, decision: approved.decision, purchaseId: approved.adjudication.purchase.id }
+        : null,
+      allResults: judged.map(r => ({
+        id: r.product.id,
+        image: r.product.image || null,
+        title: r.product.title,
+        brand: r.product.brand,
+        price: r.product.price,
+        rating: r.product.rating,
+        decision: r.decision,
+      })),
+      message: approved
+        ? `Consensus on "${approved.product.title}" (${approved.decision}).`
+        : 'No candidate reached consensus. Widen the budget or narrow the requirements.',
+    };
+  }
+
   async function triadShop({ category, query, monthlyBudget, spentThisMonth, recentPurchases, maxPrice } = {}) {
     // 1. Candidate discovery (don't duplicate category into query)
     const candidates = await _catalog.search({ query: query || undefined, category, maxPrice, limit: 5 });
@@ -107,7 +166,7 @@ export function createTriadCommerce({ triad, catalog } = {}) {
     };
   }
 
-  return { triadShop, _triad, _catalog };
+  return { triadShop, searchByImage, adjudicateCandidates, _triad, _catalog };
 }
 
 /** Register commerce tools on WebMCP. */

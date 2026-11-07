@@ -90,6 +90,50 @@ export class Channel3 {
     return this._normalize(data);
   }
 
+  /**
+   * Search the catalog with a picture instead of words.
+   *
+   * Channel3 accepts either a public image URL or a base64 payload; base64 matters here
+   * because the demo lets a person pick a file from their own machine, and that file has
+   * no public URL. Returns the same normalised shape as `search()` so the tribunal can
+   * judge an image-found product exactly like a text-found one.
+   *
+   * @param {object} q { imageUrl, base64Image, limit }
+   */
+  async searchByImage(q = {}) {
+    if (!q.imageUrl && !q.base64Image) throw new Error('imageUrl or base64Image is required');
+    if (this.mock) return this._mockSearchByImage(q);
+
+    const body = {};
+    if (q.imageUrl) body.image_url = q.imageUrl;
+    else body.base64_image = q.base64Image;
+
+    const res = await fetch(`${this.base}/v1/image-search`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': this.apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Channel3 image-search ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    return this._normalize(data);
+  }
+
+  // Offline image search: no key means no vision model, so this says so instead of
+  // pretending a match was found. A fake result here would put an invented product in
+  // front of a judge under the banner "found from your photo".
+  async _mockSearchByImage() {
+    const err = new Error(
+      'Image search needs a live Channel3 key. This deployment has no CHANNEL3_API_KEY, ' +
+      'so no visual match was attempted.'
+    );
+    err.code = 'image_search_needs_live_key';
+    throw err;
+  }
+
   async _mockSearch(q = {}) {
     let items = [...MOCK_CATALOG];
     // Category aliases so free-text categories ("laptop", "headphones") resolve.

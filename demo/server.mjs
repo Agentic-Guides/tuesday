@@ -275,6 +275,40 @@ const server = createServer(async (req, res) => {
     return res.end(html);
   }
 
+  // Search the catalogue with a photograph instead of words.
+  // The browser sends { base64Image } (a file the person picked) or { imageUrl }.
+  // Whatever Channel3 returns is then adjudicated by the same tribunal as a text search,
+  // so the image is only the entry point — the decision still goes through the gates.
+  if (req.method === 'POST' && url.pathname === '/api/shop-by-image') {
+    { const limited = rateLimited(req, 'expensive'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
+    try {
+      const body = await readJson(req, MAX_IMAGE_BODY_BYTES);
+      const base64Image = body && body.base64Image ? String(body.base64Image) : undefined;
+      const imageUrl = body && body.imageUrl ? String(body.imageUrl) : undefined;
+      if (!base64Image && !imageUrl) throw new BadRequest('base64Image or imageUrl is required');
+      if (base64Image && base64Image.length > MAX_IMAGE_BODY_BYTES) {
+        throw new BadRequest('image too large');
+      }
+      const products = await commerce.searchByImage({ base64Image, imageUrl, limit: 5 });
+      if (!products.length) {
+        return json(res, 200, { ok: false, error: 'no_match',
+          message: 'Channel3 found no product that matches this picture.' });
+      }
+      const result = await commerce.adjudicateCandidates(products, body || {});
+      return json(res, 200, { ...result, via: 'image' });
+    }
+    catch (e) {
+      if (e instanceof BadRequest) return json(res, 400, { error: e.message });
+      // A deployment with no Channel3 key cannot look at a picture. Say that plainly rather
+      // than returning an empty list, which would read as "no product matched your photo".
+      if (e && e.code === 'image_search_needs_live_key') {
+        return json(res, 503, { error: 'image_search_unavailable', message: e.message, catalog: 'MOCK' });
+      }
+      console.error('[api] image search failed:', e && e.message ? e.message : e);
+      return json(res, 502, { error: 'image_search_failed', message: e && e.message ? e.message : String(e) });
+    }
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/shop') {
     { const limited = rateLimited(req, 'expensive'); if (limited) { res.writeHead(429, {'Content-Type':'application/json','Retry-After':String(limited.retryAfterSeconds)}); return res.end(JSON.stringify(limited)); } }
     try {
@@ -844,6 +878,9 @@ function json(res, code, obj) {
  *  larger is either a mistake or a denial-of-service attempt. Without a cap,
  *  readJson() buffers until the process runs out of memory. */
 const MAX_BODY_BYTES = 64 * 1024; // 64 KB
+// Image search carries a base64 photograph, so it needs its own ceiling. Kept separate from
+// MAX_BODY_BYTES so every other route keeps the tight limit it was hardened with.
+const MAX_IMAGE_BODY_BYTES = 8 * 1024 * 1024; // 8 MB
 
 /** Per-IP rate limiting.
  *
@@ -904,12 +941,12 @@ function liveWritesAllowed() {
 
 class BadRequest extends Error {}
 
-async function readJson(req) {
+async function readJson(req, limit = MAX_BODY_BYTES) {
   const chunks = [];
   let total = 0;
   for await (const c of req) {
     total += c.length;
-    if (total > MAX_BODY_BYTES) {
+    if (total > limit) {
       // Stop reading and let the handler answer 413. Destroying the socket here
       // would surface as a reset instead of an honest error.
       throw new BadRequest(`request body exceeds ${MAX_BODY_BYTES} bytes`);
