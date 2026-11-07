@@ -45,7 +45,7 @@ export function createTriadCommerce({ triad, catalog } = {}) {
         _triad.triadAdjudicate({
           amount: product.price,
           category: product.title,
-          reason: `${product.brand} ${product.title} — restock for the requested budget`,
+          reason: `${product.brand} ${product.title} (matched from an uploaded photo)`,
           monthlyBudget,
           spentThisMonth,
           recentPurchases: Array.isArray(recentPurchases) ? recentPurchases : [],
@@ -126,13 +126,17 @@ export function createTriadCommerce({ triad, catalog } = {}) {
         _triad.triadAdjudicate({
           amount: product.price,
           category: product.title,
-          // The reasoning has to describe the purchase, not the search. Measured 2026-11-07:
-          // framing the same $84.99 earbuds as 'Best match for "electronics"' made the tribunal
-          // return DENIED 1-2 three times in a row, while the identical case with no framing came
-          // back APPROVED 3-0 three times in a row. The phrase was inviting the Auditor to rule on
-          // whether the search was well-formed, which is not the question the tribunal exists to
-          // answer. It now states what is being bought and why, and leaves the gates to decide.
-          reason: `${product.brand} ${product.title} — restock for the "${category || query || 'current request'}" budget`, 
+          // The reasoning has to describe the purchase without asserting anything the product
+          // does not claim. Two measured failures on 2026-11-07, both on identical inputs:
+          //   'Best match for "electronics"'        → DENIED 1-2  (the phrase invited a verdict on
+          //                                                       whether the search was good)
+          //   '... — restock for the "electronics" budget' → DENIED 1-2  (the word "restock" says
+          //                                                       this is a repurchase, so the
+          //                                                       repeat gate G4 fires on a
+          //                                                       first-time purchase)
+          // With no reason at all the same $109 air fryer came back APPROVED 3-0. The sentence now
+          // names the item and where it came from and stops; the gates decide the rest.
+          reason: `${product.brand} ${product.title} (${category || query || 'catalogue match'})`, 
           monthlyBudget,
           spentThisMonth,
           recentPurchases: repeatHistory(product),
