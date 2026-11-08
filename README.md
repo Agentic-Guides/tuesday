@@ -20,6 +20,27 @@ node demo/server.mjs          # → http://localhost:8787
 Then press the three buttons under **Prove it yourself** to check the claims in this file. Full
 instructions, including the live PayPal sandbox path, are in [Run It](#run-it) and [SETUP.md](SETUP.md).
 
+**Two calls, not one.** The tribunal and the payment are separate on purpose, and it is the first
+thing to know if you are poking this with `curl`:
+
+| Step | Endpoint | What it does |
+|---|---|---|
+| 1 | `POST /api/adjudicate` | Runs the three agents and the gates. Returns the verdict, the receipt and a `purchaseId`. **It never touches PayPal.** |
+| 2 | `POST /api/order` with `{"purchaseId": "..."}` | Only now is a PayPal order raised, with the audit hash stamped into `custom_id`. |
+
+```bash
+purchase=$(curl -s -X POST localhost:8787/api/adjudicate -H 'Content-Type: application/json' \
+  -d '{"amount":42,"category":"restock","monthlyBudget":200,"spentThisMonth":0}' \
+  | python -c 'import sys,json; print(json.load(sys.stdin)["purchase"]["id"])')
+
+curl -s -X POST localhost:8787/api/order -H 'Content-Type: application/json' \
+  -d "{\"purchaseId\":\"$purchase\"}"
+```
+
+Calling `adjudicate` alone and expecting an order is the one mistake this page would otherwise
+cause. A DENIED verdict returns a `purchaseId` too, and `/api/order` refuses it with `not_approved`
+— the refusal is at step 2, where the money is, not at step 1.
+
 **Sponsor tools used:** PayPal ✅ · AG Grid ✅ · Bryntum ✅ · Channel3 ✅ · Render ✅
 
 > **Three independent LLMs decide; PayPal settles. No order is created unless the gates pass, and nothing is captured unless a human finishes the payment in PayPal. The decision — including the disagreement — is hashed and stamped into the PayPal order's `custom_id`, so the reason a payment was allowed is **verifiable from** the payment record — the stamp is a 16-character fingerprint, and the reasoning behind it lives in the receipt the ledger holds.**
